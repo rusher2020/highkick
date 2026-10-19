@@ -4,18 +4,18 @@
 
 - 화면: GitHub Pages (`index.html`)
 - 데이터: Firebase Firestore (실시간 반영)
-- 수정 권한: 운영진 구글 계정만 (`firestore.rules`)
+- 수정 권한: 운영진 PIN을 입력한 기기만 (`firestore.rules`)
 - 보기: 링크만 있으면 누구나, 로그인 없이
 
 ## 처음 설정
 
-1. Firebase 콘솔에서 프로젝트를 만들고 **Firestore**(서울, 프로덕션 모드)와 **Authentication > Google**을 켭니다.
+1. Firebase 콘솔에서 프로젝트를 만들고 **Firestore**(서울, 프로덕션 모드)와 **Authentication > 로그인 방법 > 익명**을 켭니다.
 2. Authentication > 설정 > 승인된 도메인에 `rusher2020.github.io`를 추가합니다.
 3. 웹 앱을 등록하고 `firebaseConfig` 값을 `config.js`에 넣습니다.
-4. `firestore.rules`의 운영진 이메일 3개를 바꾼 뒤, Firestore > 규칙에 붙여 넣고 게시합니다.
-5. 사이트에서 운영진 로그인 → 회원 티어 탭 → **기존 데이터 불러오기**로 백업 파일(.json)을 올립니다.
+4. `firestore.rules`를 Firestore > 규칙에 붙여 넣고, `PIN_HERE`를 운영진 PIN으로 바꿔 게시합니다. (PIN은 저장소에 올리지 마세요)
+5. 사이트에서 운영진 로그인(PIN 입력) → 회원 티어 탭 → **기존 데이터 불러오기**로 백업 파일(.json)을 올립니다.
 
 ## 사용 팁
 
-- 카카오톡에서 링크를 열면 구글 로그인이 막힙니다. 운영진은 크롬 등 다른 브라우저로 열어 로그인하세요. 보기만 하는 회원은 상관없습니다.
-- 운영진이 바뀌면 `firestore.rules`의 이메일 목록만 고쳐 다시 게시하면 됩니다.
+- 운영진 PIN은 기기마다 한 번만 입력하면 유지됩니다. 카카오톡 안에서 열어도 로그인됩니다.
+- PIN을 바꾸려면 Firestore > 규칙에서 PIN만 고쳐 다시 게시하세요. 기존 기기는 자동으로 권한이 해제됩니다.

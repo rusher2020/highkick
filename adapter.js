@@ -7,41 +7,71 @@
   "use strict";
   const cfg = window.HIGHKICK_FIREBASE || {};
   const configured = !!(cfg.apiKey && cfg.projectId && !String(cfg.apiKey).startsWith("여기에"));
-  let fs = null, auth = null, currentUser = null;
+  let fs = null, auth = null, isAdmin = false;
 
+  /*
+   * 운영진 PIN 로그인
+   * 1) 익명 로그인으로 기기별 ID를 받고
+   * 2) admins/{그 ID} 문서에 입력한 PIN을 저장 → Firestore 규칙이 PIN이 맞을 때만 저장을 허용
+   * 3) 이후 쓰기는 규칙이 admins/{ID}의 PIN을 다시 확인 (PIN을 바꾸면 기존 기기는 자동으로 권한 해제)
+   */
   if (configured && window.firebase) {
     firebase.initializeApp(cfg);
     fs = firebase.firestore();
     auth = firebase.auth();
-    auth.getRedirectResult().catch(function () {});
-    auth.onAuthStateChanged(function (u) { currentUser = u; paintWho(); });
+    auth.onAuthStateChanged(async function (u) {
+      isAdmin = false;
+      if (u) {
+        try { const d = await fs.collection("admins").doc(u.uid).get(); isAdmin = d.exists; } catch (e) {}
+      }
+      paintWho();
+    });
   }
 
   function paintWho() {
     const b = document.getElementById("whoBtn");
     if (!b) return;
     b.hidden = !configured;
-    b.textContent = currentUser ? (currentUser.displayName || currentUser.email || "운영진") + " · 로그아웃" : "운영진 로그인";
+    b.textContent = isAdmin ? "운영진 · 로그아웃" : "운영진 로그인";
   }
 
-  async function login() {
+  function login() {
     if (!auth) return;
-    const provider = new firebase.auth.GoogleAuthProvider();
-    const inApp = /KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent);
-    if (inApp) {
-      alertBox("카카오톡 안 브라우저에서는 구글 로그인이 막혀 있어요. 오른쪽 위 메뉴에서 '다른 브라우저로 열기'를 눌러 크롬에서 로그인해 주세요.");
-      return;
-    }
-    try { await auth.signInWithPopup(provider); }
-    catch (e) {
-      if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) {
-        await auth.signInWithRedirect(provider);
-      } else if (e && e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") {
-        alertBox("로그인하지 못했어요: " + (e.message || e.code));
+    const root = document.getElementById("sheetRoot");
+    root.innerHTML = '<div class="scrim" id="pinScrim"><form class="sheet" id="pinForm">' +
+      '<div class="row spread"><h2>운영진 로그인</h2><button type="button" class="btn ghost small" id="pinClose">닫기</button></div>' +
+      '<p class="small muted" style="margin:0">운영진 PIN을 입력하면 이 기기에서 출석·점수·조합을 수정할 수 있어요. 한 번 입력하면 계속 유지됩니다.</p>' +
+      '<div class="row" style="flex-wrap:nowrap"><input id="pinInput" type="password" inputmode="numeric" autocomplete="off" aria-label="PIN" ' +
+      'style="flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:12px;font-size:1.2rem;letter-spacing:.3em;text-align:center">' +
+      '<button class="btn primary" type="submit">확인</button></div></form></div>';
+    const close = function () { root.innerHTML = ""; };
+    document.getElementById("pinScrim").onclick = function (e) { if (e.target.id === "pinScrim") close(); };
+    document.getElementById("pinClose").onclick = close;
+    setTimeout(function () { const i = document.getElementById("pinInput"); if (i) i.focus(); }, 50);
+    document.getElementById("pinForm").onsubmit = async function (e) {
+      e.preventDefault();
+      const pin = document.getElementById("pinInput").value.trim();
+      if (!pin) return;
+      try {
+        if (!auth.currentUser) await auth.signInAnonymously();
+        await fs.collection("admins").doc(auth.currentUser.uid).set({ pin: pin, at: Date.now() });
+        isAdmin = true; paintWho(); close();
+        alertBox("운영진으로 로그인했어요");
+      } catch (err) {
+        if (err && err.code === "permission-denied") alertBox("PIN이 맞지 않아요");
+        else if (err && (err.code === "auth/operation-not-allowed" || err.code === "auth/admin-restricted-operation"))
+          alertBox("Firebase에서 '익명' 로그인이 꺼져 있어요. Authentication > 로그인 방법에서 켜 주세요.");
+        else alertBox("로그인하지 못했어요: " + ((err && (err.code || err.message)) || "알 수 없는 오류"));
+        const i = document.getElementById("pinInput"); if (i) i.select();
       }
-    }
+    };
   }
-  async function logout() { if (auth) await auth.signOut(); }
+  async function logout() {
+    if (!auth || !auth.currentUser) return;
+    try { await fs.collection("admins").doc(auth.currentUser.uid).delete(); } catch (e) {}
+    await auth.signOut();
+    alertBox("로그아웃했어요");
+  }
 
   function alertBox(msg) {
     const r = document.getElementById("toastRoot");
@@ -55,7 +85,7 @@
     const b = e.target.closest && e.target.closest("#whoBtn");
     if (!b) return;
     e.stopPropagation();
-    currentUser ? logout() : login();
+    isAdmin ? logout() : login();
   }, true);
 
   /* 이미지 저장: 휴대폰은 공유 시트(카톡으로 바로), 그 외는 파일 다운로드 */
@@ -75,7 +105,7 @@
     }
   };
 
-  window.HK = { login: login, user: function () { return currentUser; }, ocr: false, configured: configured };
+  window.HK = { login: login, user: function () { return isAdmin; }, ocr: false, configured: configured };
   window.claude = {
     use: async function (name) {
       if (name === "db") return fs;
@@ -90,7 +120,7 @@
     const f = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!f || !fs) return;
-    if (!currentUser) { alertBox("먼저 운영진 로그인을 해 주세요"); login(); return; }
+    if (!isAdmin) { alertBox("먼저 운영진 로그인을 해 주세요"); login(); return; }
     try {
       const data = JSON.parse(await f.text());
       let n = 0, batch = fs.batch();
@@ -103,7 +133,7 @@
       await batch.commit();
       alertBox(n + "개 항목을 불러왔어요");
     } catch (err) {
-      alertBox(err && err.code === "permission-denied" ? "이 계정은 수정 권한이 없어요" : "파일을 불러오지 못했어요");
+      alertBox(err && err.code === "permission-denied" ? "수정 권한이 없어요. 다시 로그인해 주세요" : "파일을 불러오지 못했어요");
     }
   });
 

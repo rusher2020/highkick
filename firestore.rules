@@ -1,19 +1,28 @@
 rules_version = '2';
-// 하이킥 팀 밸런서 — 누구나 볼 수 있고, 운영진 구글 계정만 수정할 수 있습니다.
-// 운영진이 바뀌면 아래 목록만 고치고 Firebase 콘솔 > Firestore > 규칙에 다시 게시하세요.
+// 하이킥 팀 밸런서 — 누구나 볼 수 있고, 운영진 PIN을 입력한 기기만 수정할 수 있습니다.
+// 실제 PIN은 이 저장소에 올리지 말고, Firebase 콘솔 > Firestore > 규칙에서만 'PIN_HERE'를 바꿔 게시하세요.
+// PIN을 바꾸면 기존에 로그인한 기기는 자동으로 수정 권한이 사라집니다.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function pinOk(p) { return p == 'PIN_HERE'; }
+
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'rusher2020@gmail.com'
-          // 운영진 추가 예: , 'someone@gmail.com'
-        ];
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && pinOk(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.pin);
     }
+
+    // 기기별 운영진 표시 — 본인만 읽고, PIN이 맞을 때만 만들 수 있음
+    match /admins/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+                             && pinOk(request.resource.data.pin);
+    }
+
+    // 회원·기록·출석 등 — 누구나 보기, 운영진만 수정
     match /{collection}/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if collection != 'admins';
+      allow write: if collection != 'admins' && isAdmin();
     }
   }
 }
