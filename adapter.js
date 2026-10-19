@@ -39,7 +39,7 @@
   } else { readyResolve(); }
 
   function paintLock() {
-    const main = document.getElementById("main"), tabs = document.querySelector(".tabs");
+    const main = document.getElementById("main") || document.querySelector("main"), tabs = document.querySelector(".tabs");
     if (!main) return;
     let lock = document.getElementById("lockPanel");
     if (isAdmin || !configured) { if (lock) lock.remove(); main.hidden = false; if (tabs) tabs.hidden = false; return; }
