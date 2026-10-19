@@ -7,9 +7,8 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email.lower() in [
-          'operator1@gmail.com',
-          'operator2@gmail.com',
-          'operator3@gmail.com'
+          'rusher2020@gmail.com'
+          // 운영진 추가 예: , 'someone@gmail.com'
         ];
     }
     match /{collection}/{docId} {
