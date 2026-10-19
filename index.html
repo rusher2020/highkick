@@ -163,6 +163,27 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:40;max-width:calc(100% - 32px)}
 .notice{font-size:.82rem;padding:10px 12px;border-radius:10px;background:var(--sunk);color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.chip,.team li button,.btn{transition:background .15s,border-color .15s}}
+/* 주사위 */
+.dice-ov{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(10,24,16,.55);backdrop-filter:blur(2px)}
+.dice-box{display:flex;flex-direction:column;align-items:center;gap:18px;color:#F3F7F1;font-family:var(--f-display);font-size:1.3rem;letter-spacing:.02em}
+.dice-row{display:flex;gap:22px}
+.die{width:74px;height:74px;border-radius:16px;background:#FFFFFF;box-shadow:0 10px 24px rgba(0,0,0,.35),inset 0 -5px 0 rgba(0,0,0,.08);display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:11px;gap:2px}
+.die i{width:13px;height:13px;border-radius:50%;background:#1D5A37;place-self:center;visibility:hidden}
+.die i.on{visibility:visible}
+.die.b i{background:#C0392B}
+@keyframes tumble{0%{transform:translateY(-40px) rotate(0)}25%{transform:translateY(0) rotate(160deg)}45%{transform:translateY(-18px) rotate(250deg)}65%{transform:translateY(0) rotate(330deg)}82%{transform:translateY(-6px) rotate(352deg)}100%{transform:translateY(0) rotate(360deg)}}
+.die.roll{animation:tumble 1.15s cubic-bezier(.3,.7,.4,1) both}
+.die.b.roll{animation-delay:.08s}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.teams.reveal .team{animation:rise .45s ease both}
+.teams.reveal .team:nth-child(2){animation-delay:.08s}.teams.reveal .team:nth-child(3){animation-delay:.16s}.teams.reveal .team:nth-child(4){animation-delay:.24s}.teams.reveal .team:nth-child(5){animation-delay:.32s}.teams.reveal .team:nth-child(6){animation-delay:.4s}
+/* 레이더 */
+.radar{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+.radar svg{width:100%;max-width:340px;height:auto;justify-self:center;overflow:visible}
+.radar .lg{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.radar .lg button{display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:.8rem}
+.radar .lg button[aria-pressed="false"]{opacity:.4}
+.radar .lg i{width:10px;height:10px;border-radius:50%;display:inline-block}
 </style>
 </head>
 <body>
@@ -300,7 +321,24 @@ function buildOnce(players,k,jitter,caps){
   teams.forEach(t=>t.sort((x,y)=>eff(y)-eff(x)));
   return {teams,cost:cur};
 }
+const PIPS={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+function dieHtml(cls){return `<div class="die ${cls}">${Array.from({length:9},()=>"<i></i>").join("")}</div>`;}
+function setFace(el,n){el.querySelectorAll("i").forEach((d,i)=>d.classList.toggle("on",PIPS[n].includes(i)));}
 function generate(){
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce){generateNow();return;}
+  const ov=document.createElement("div");ov.className="dice-ov";ov.setAttribute("role","status");
+  ov.innerHTML=`<div class="dice-box"><div class="dice-row">${dieHtml("a roll")}${dieHtml("b roll")}</div><span>팀 섞는 중…</span></div>`;
+  document.body.appendChild(ov);
+  const dice=ov.querySelectorAll(".die");let t=0;
+  const tick=setInterval(()=>{dice.forEach(d=>setFace(d,1+Math.floor(Math.random()*6)));t++;},90);
+  dice.forEach(d=>setFace(d,1+Math.floor(Math.random()*6)));
+  setTimeout(()=>{generateNow();},250); // 계산은 굴리는 동안 미리
+  setTimeout(()=>{clearInterval(tick);ov.querySelector("span").textContent="팀 완성!";
+    setTimeout(()=>{ov.remove();const tm=document.querySelector(".teams");if(tm){tm.classList.add("reveal");tm.scrollIntoView({behavior:"smooth",block:"start"});}},420);},1250);
+}
+function generateNow(){
+  radarHidden=new Set();
   buildPairW();
   const rated=guests.filter(g=>g.rated).map(gNorm),unrated=guests.filter(g=>!g.rated);
   const players=[...attend].map(byId).filter(Boolean).concat(rated);
@@ -364,6 +402,7 @@ function renderMake(){
     const lv=gap<.15?["good","아주 고름"]:gap<.3?["warn","괜찮음"]:["bad","차이 있음"];
     h+=`<div class="row spread"><h2>추천 조합</h2>${options.length>1?`<div class="seg">${options.map((_,i)=>`<button data-opt="${i}" aria-pressed="${i===optIdx}">${i+1}안</button>`).join("")}</div>`:""}</div>
     <div class="balance"><span class="dot" style="background:var(--${lv[0]})"></span><span>회원 전력 차</span><b>${gap.toFixed(2)}</b><span class="small muted">${lv[1]}</span>${(()=>{const lo=lastOverlap(o.teams);return lo===null?"":`<span class="small muted" style="margin-left:auto">지난 경기와 겹친 짝 <b class="num" style="font-size:.95rem">${lo}</b></span>`;})()}</div>
+    ${radarHtml(o.teams.map(stats))}
     <p class="small muted" style="margin:0">선수 두 명을 차례로 누르면 서로 팀을 바꿉니다.</p>
     <div class="teams">${o.teams.map((t,ti)=>{const s=st[ti],b=BIBS[ti%6];return `<article class="team">
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
@@ -538,6 +577,7 @@ document.addEventListener("click",e=>{
   if(b.id==="allOn"){members.filter(m=>m.active!==false).forEach(m=>attend.add(m.id));options=[];renderMake();saveAttend();return;}
   if(b.dataset.gedit)return openGuestEdit(b.dataset.gedit);
   if(b.id==="addPair")return openPairPicker();
+  if(b.dataset.radar){const i=+b.dataset.radar;radarHidden.has(i)?radarHidden.delete(i):radarHidden.add(i);renderMake();return;}
   if(b.dataset.rmpair){pairs=pairs.filter((_,i)=>i!==+b.dataset.rmpair);savePairs();options=[];renderMake();return;}
   if(b.dataset.rmguest){guests=guests.filter(g=>g.id!==b.dataset.rmguest);options=[];renderMake();saveAttend();return;}
   if(b.id==="allOff"){attend.clear();guests=[];options=[];renderMake();saveAttend();return;}
@@ -663,6 +703,32 @@ function openPairPicker(){
     $("#pairOk").onclick=()=>{if(!(a&&b&&a!==b))return;if(!pairs.some(p=>(p.a===a&&p.b===b)||(p.a===b&&p.b===a)))pairs.push({a,b});savePairs();options=[];closeSheet();renderMake();toast("짝을 묶었어요");};
   };
   draw();
+}
+/* ---------- 팀 능력치 레이더 ---------- */
+const BIB_COL=["var(--bib1)","var(--bib2)","var(--bib3)","var(--bib4)","var(--bib5)","var(--bib6)"];
+let radarHidden=new Set();
+function radarHtml(st){
+  // 축: 공격·미드·수비·종합·GK (GK는 팀 내 골키퍼 잘하는 인원, 0~2명을 1~5 눈금에 맞춤)
+  const axes=[["공격",s=>s.atk],["미드",s=>s.mid],["수비",s=>s.def],["종합",s=>s.avg],["GK",s=>Math.min(2,s.gk)]];
+  const vals=st.map(s=>axes.map(([,f])=>f(s)));
+  const sk=vals.flatMap(v=>v.slice(0,4));
+  // 팀 간 차이가 작아 0~5 전체로 그리면 겹쳐 보이므로, 실제 범위 주변만 확대 (눈금에 표시)
+  let lo=Math.max(1,Math.floor(Math.min(...sk)*2)/2-.5),hi=Math.min(5,Math.ceil(Math.max(...sk)*2)/2+.5);if(hi-lo<1)hi=lo+1;
+  const W=320,C=W/2,R=112,n=axes.length;
+  const ang=i=>-Math.PI/2+i*2*Math.PI/n;
+  const pt=(i,f)=>[C+Math.cos(ang(i))*R*f,C+Math.sin(ang(i))*R*f];
+  const frac=(i,v)=>i===4?Math.max(.08,v/2):Math.max(.05,(v-lo)/(hi-lo));
+  const rings=[.25,.5,.75,1].map(f=>`<polygon points="${axes.map((_,i)=>pt(i,f).join(",")).join(" ")}" fill="none" stroke="var(--line)" stroke-width="1"/>`).join("");
+  const spokes=axes.map((_,i)=>{const [x,y]=pt(i,1);return `<line x1="${C}" y1="${C}" x2="${x}" y2="${y}" stroke="var(--line)"/>`;}).join("");
+  const labels=axes.map(([l],i)=>{const [x,y]=pt(i,1.2);return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="700" fill="var(--ink)">${l}</text>`;}).join("");
+  const ticks=`<text x="${C+4}" y="${C-R-4}" font-size="10" fill="var(--muted)">${hi.toFixed(1)}</text><text x="${C+4}" y="${C-R*.5-2}" font-size="10" fill="var(--muted)">${((lo+hi)/2).toFixed(1)}</text>`;
+  const polys=vals.map((v,ti)=>{if(radarHidden.has(ti))return "";const pts=v.map((x,i)=>pt(i,frac(i,x)).join(",")).join(" ");
+    return `<polygon points="${pts}" fill="${BIB_COL[ti%6]}" fill-opacity=".12" stroke="${BIB_COL[ti%6]}" stroke-width="2.5" stroke-linejoin="round"/>`+
+      v.map((x,i)=>{const [px,py]=pt(i,frac(i,x));return `<circle cx="${px}" cy="${py}" r="3.2" fill="${BIB_COL[ti%6]}"/>`;}).join("");}).join("");
+  const lg=st.map((s,ti)=>`<button type="button" data-radar="${ti}" aria-pressed="${!radarHidden.has(ti)}"><i style="background:${BIB_COL[ti%6]}"></i>${BIBS[ti%6][0]} <span class="num muted">${s.avg.toFixed(2)}</span></button>`).join("");
+  return `<div class="panel radar"><div class="row spread"><b>팀 능력치 비교</b><span class="small muted">눈금 ${lo.toFixed(1)}~${hi.toFixed(1)}점 확대</span></div>
+    <svg viewBox="-30 -24 380 368" role="img" aria-label="팀별 공격·미드·수비·종합·GK 레이더 차트">${rings}${spokes}${ticks}${polys}${labels}</svg>
+    <div class="lg">${lg}</div><span class="small muted" style="text-align:center">팀 이름을 누르면 숨기거나 다시 보여요. GK는 골키퍼 잘하는 인원(최대 2명).</span></div>`;
 }
 /* ---------- 투표 캡처 → 출석 ---------- */
 function cleanName(raw){
