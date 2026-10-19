@@ -95,6 +95,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .tint{box-shadow:inset 4px 0 0 var(--tc);background:color-mix(in srgb,var(--tc) 10%,var(--surface))}
 .stripe{box-shadow:inset 4px 0 0 var(--tc)}
 .tb{display:inline-flex;flex:none;line-height:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
+.ft{display:inline-block;font:700 .62rem/1 var(--f-num);padding:2px 4px;border-radius:4px;background:var(--sunk);color:var(--muted);vertical-align:2px}
 .tier.S{background:var(--tS)}.tier.A{background:var(--tA)}.tier.B{background:var(--tB)}.tier.C{background:var(--tC)}.tier.D{background:var(--tD)}
 
 .seg{display:inline-flex;background:var(--sunk);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
@@ -253,7 +254,11 @@ const gameDate=()=>matchDate||today();
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const r2=x=>Math.round(x*100)/100;
-const eff=m=>r2((m.score||3)+(m.adj||0));
+const INJ=0.5;
+const adjOf=m=>(m.adj||0)-(m.injured?INJ:0);
+const eff=m=>r2((m.score||3)+adjOf(m));
+const FOOT={L:"왼발",R:"오른발",B:"양발"};
+const badges=m=>(m.injured?" 🩹":"")+(m.foot==="L"?' <span class="ft">L</span>':m.foot==="B"?' <span class="ft">LR</span>':"");
 function tierOf(s){const b=Math.max(1,Math.min(5,Math.floor(s)));const L={5:"S",4:"A",3:"B",2:"C",1:"D"}[b];return {k:L,label:L+(s%1>=.5&&b<5?"+":"")};}
 const TIER_NAME={S:"레전드",A:"에이스",B:"주전",C:"유망주",D:"새싹"};
 function tierHtml(s){const t=tierOf(s),plus=t.label.endsWith("+");
@@ -283,7 +288,7 @@ function kChoices(n){const out=[];for(let k=2;k<=6;k++){const s=sizes(n,k);if(s[
 function stats(all){
   const team=all.filter(m=>!m.guest||m.rated),n=team.length,sum=team.reduce((a,m)=>a+eff(m),0);
   return {n:all.length,guest:all.length-n,sum:r2(sum),avg:n?sum/n:0,gk:team.filter(m=>m.gk).length,
-    atk:n?team.reduce((a,m)=>a+m.atk+(m.adj||0),0)/n:0,mid:n?team.reduce((a,m)=>a+m.mid+(m.adj||0),0)/n:0,def:n?team.reduce((a,m)=>a+m.def+(m.adj||0),0)/n:0,top:team.filter(m=>m.score>=4.5).length,
+    atk:n?team.reduce((a,m)=>a+m.atk+adjOf(m),0)/n:0,mid:n?team.reduce((a,m)=>a+m.mid+adjOf(m),0)/n:0,def:n?team.reduce((a,m)=>a+m.def+adjOf(m),0)/n:0,left:team.filter(m=>m.foot==="L").length,inj:team.filter(m=>m.injured).length,top:team.filter(m=>m.score>=4.5).length,
     T:team.reduce((o,m)=>{o[tierOf(m.score).k]++;return o;},{S:0,A:0,B:0,C:0,D:0}),
     P:team.reduce((o,m)=>{o[m.pos||"ALL"]++;return o;},{FW:0,MF:0,DF:0,ALL:0})};
 }
@@ -317,7 +322,7 @@ function cost(teams,totalGK){
   const avgs=st.map(s=>s.avg),rng=a=>Math.max(...a)-Math.min(...a);
   const unavoidable=Math.max(0,k-totalGK);
   const missing=st.filter(s=>s.gk===0).length;
-  return rng(avgs)*10+Math.max(0,missing-unavoidable)*3+(rng(st.map(s=>s.atk))+rng(st.map(s=>s.mid))+rng(st.map(s=>s.def)))*3+tierCost(st,k)+posCost(st,k)+pairCost(teams)+overlap(teams)*.08;
+  return rng(avgs)*10+Math.max(0,missing-unavoidable)*3+(rng(st.map(s=>s.atk))+rng(st.map(s=>s.mid))+rng(st.map(s=>s.def)))*3+tierCost(st,k)+posCost(st,k)+(Math.max(...st.map(s=>s.left))-Math.min(...st.map(s=>s.left)))*.3+pairCost(teams)+overlap(teams)*.08;
 }
 function buildOnce(players,k,jitter,caps){
   const arr=players.map(p=>({p,v:eff(p)+(Math.random()-.5)*jitter})).sort((a,b)=>b.v-a.v);
@@ -403,7 +408,7 @@ function renderMake(){
       <label class="btn small" style="position:relative;cursor:pointer">날짜 선택<input type="date" id="gameDate" value="${gameDate()}" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label></div>
   </div>
   <div class="row spread"><h2>출석 <span class="num">${n}</span>명${guests.length?` <span class="small muted">(용병 ${guests.length})</span>`:""}</h2><div class="row"><button class="btn ghost small" id="allOn">전체 선택</button><button class="btn ghost small" id="allOff">비우기</button></div></div>
-  <div class="chips">${active.map(m=>`<button class="chip stripe t-${tierOf(m.score).k}" data-att="${m.id}" aria-pressed="${attend.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></button>`).join("")}</div>
+  <div class="chips">${active.map(m=>`<button class="chip stripe t-${tierOf(m.score).k}" data-att="${m.id}" aria-pressed="${attend.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.injured?" 🩹":""}</span></button>`).join("")}</div>
   <div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b>같은 팀 묶기 <span class="num">${activePairs().length}</span></b><button class="btn small" id="addPair">짝 추가</button></div>
     ${pairs.length?`<div class="chips" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${pairs.map((p,i)=>{const a=byId(p.a),b=byId(p.b);if(!a||!b)return "";const on=attend.has(p.a)&&attend.has(p.b);
@@ -431,8 +436,8 @@ function renderMake(){
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
       <div class="meta"><span class="pill ${s.gk?"ok":"no"}">GK ${s.gk?"있음":"없음"}</span>${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
       <div class="meta" style="padding-top:4px"><span class="pill">주포지션 공${s.P.FW} 미${s.P.MF} 수${s.P.DF}${s.P.ALL?` 올${s.P.ALL}`:""}</span></div>
-      <div class="meta" style="padding-top:4px"><span class="pill num">공 ${s.atk.toFixed(1)}</span><span class="pill num">미 ${s.mid.toFixed(1)}</span><span class="pill num">수 ${s.def.toFixed(1)}</span><span class="pill num">회원 합 ${s.sum.toFixed(1)}</span></div>
-      <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
+      <div class="meta" style="padding-top:4px"><span class="pill num">공 ${s.atk.toFixed(1)}</span><span class="pill num">미 ${s.mid.toFixed(1)}</span><span class="pill num">수 ${s.def.toFixed(1)}</span><span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}</div>
+      <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
     <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
   }
   v.innerHTML=h;
@@ -474,7 +479,7 @@ function renderMembers(){
   <p style="margin:.6rem 0 0" class="muted">두 단계 사이면 0.5점 (예: 3과 4 사이 → 3.5). 운영진 3명이 각자 매긴 뒤 평균을 0.5 단위로 반올림하세요. 3점(B)이 가장 많고 S는 1~2명 정도가 적당합니다.</p>
 </details>
   <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 기본 + 보정</span>`}</div>
-  <ul class="mlist">${list.map(m=>{const a=m.adj||0;return `<li><button data-edit="${m.id}" class="tint t-${tierOf(m.score).k}" style="${m.active===false?"opacity:.5;":""}${m.id===lastEdited?"background:var(--accent-soft)":""}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}<span class="sub num">${tierName(m.score)} · 공 ${m.atk} · 미 ${m.mid} · 수 ${m.def}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
+  <ul class="mlist">${list.map(m=>{const a=m.adj||0;return `<li><button data-edit="${m.id}" class="tint t-${tierOf(m.score).k}" style="${m.active===false?"opacity:.5;":""}${m.id===lastEdited?"background:var(--accent-soft)":""}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}${badges(m)}<span class="sub num">${tierName(m.score)} · 공 ${m.atk} · 미 ${m.mid} · 수 ${m.def}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
   <div class="panel row spread"><div class="small"><b>분기 재평가</b><div class="muted">모든 회원의 보정치를 0으로 되돌립니다.</div></div><button class="btn danger small" id="resetAdj">보정치 초기화</button></div>`;
   v.innerHTML=h;
 }
@@ -507,13 +512,15 @@ function closeSheet(){$("#sheetRoot").innerHTML="";}
 function openEdit(m){
   const isNew=!m;m=norm(m||{name:"",score:3,gk:false,adj:0,active:true});
   const v={atk:m.atk,mid:m.mid,def:m.def};let confirmDel=false;let by=me();
-  const orig={name:m.name,atk:m.atk,mid:m.mid,def:m.def,gk:!!m.gk,active:m.active!==false};
+  const orig={name:m.name,atk:m.atk,mid:m.mid,def:m.def,gk:!!m.gk,active:m.active!==false,injured:!!m.injured,foot:m.foot||""};let foot=m.foot||"";
   const avg=()=>r2((v.atk+v.mid+v.def)/3);
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label>
     ${AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(s=>`<button type="button" data-a="${a}" data-s="${s}" aria-pressed="${s===v[a]}">${s}</button>`).join("")}</div></div>`).join("")}
     <div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(1)}</b></span><span class="small muted" style="margin-left:auto">주 포지션 ${POS[posOf(v)]}</span></div>
+    <div class="field"><span class="label">주발</span><div class="seg">${[["L","왼발"],["R","오른발"],["B","양발"]].map(([k,l])=>`<button type="button" data-foot="${k}" aria-pressed="${foot===k}">${l}</button>`).join("")}</div></div>
+    <label class="toggle"><input type="checkbox" id="fInj" ${m.injured?"checked":""}> 🩹 부상 중 <span class="small muted">(팀 짜기 때 −0.5점으로 계산)</span></label>
     <label class="toggle"><input type="checkbox" id="fGK" ${m.gk?"checked":""}> 골키퍼 잘함 <span class="small muted">(팀마다 1명씩 나눠 배치)</span></label>
     <label class="toggle"><input type="checkbox" id="fAct" ${m.active!==false?"checked":""}> 활동 중 (끄면 출석 목록에서 숨김)</label>
     ${isNew?"":`<div class="small muted">경기 보정치 <span class="num">${(m.adj||0)>0?"+":""}${(m.adj||0).toFixed(1)}</span> · 현재 점수 <span class="num">${eff(m).toFixed(1)}</span></div>`}
@@ -525,19 +532,20 @@ function openEdit(m){
   </form></div>`;
   $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};
   $("#cx").onclick=closeSheet;
-  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;v[b.dataset.a]=+b.dataset.s;draw();});
-  const keepForm=()=>{m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;};
+  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;v[b.dataset.a]=+b.dataset.s;draw();});
+  const keepForm=()=>{m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;};
+  document.querySelectorAll("[data-foot]").forEach(b=>b.onclick=()=>{keepForm();foot=foot===b.dataset.foot?"":b.dataset.foot;draw();});
   document.querySelectorAll("[data-by]").forEach(b=>b.onclick=()=>{keepForm();by=b.dataset.by;setMe(by);draw();});
   const cb=$("#chgBy");if(cb)cb.onclick=()=>{keepForm();by="";draw();};
   const del=$("#del");if(del)del.onclick=async()=>{if(!confirmDel){m.name=$("#fName").value;confirmDel=true;draw();return;}
     if(by)setMe(by);
     try{await db.doc("members/"+m.id).delete();addLog({kind:"delete",memberId:m.id,name:orig.name});attend.delete(m.id);saveAttend();closeSheet();toast("삭제했습니다");}catch(e){dbErr(e);}};
   $("#editForm").onsubmit=async e=>{e.preventDefault();const name=$("#fName").value.trim();if(!name){toast("이름을 입력해 주세요");return;}
-    const body={name,atk:v.atk,mid:v.mid,def:v.def,score:avg(),pos:posOf(v),gk:$("#fGK").checked,active:$("#fAct").checked,adj:m.adj||0};
+    const body={name,atk:v.atk,mid:v.mid,def:v.def,score:avg(),pos:posOf(v),gk:$("#fGK").checked,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
     if(!by){toast("누가 수정하는지 운영진 이름을 골라 주세요");return;}setMe(by);
     const ch={};
     if(!isNew){for(const k of ["atk","mid","def"])if(orig[k]!==body[k])ch[k]=[orig[k],body[k]];
-      if(orig.gk!==body.gk)ch.gk=[orig.gk,body.gk];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
+      if(orig.gk!==body.gk)ch.gk=[orig.gk,body.gk];if(orig.injured!==body.injured)ch.injured=[orig.injured,body.injured];if(orig.foot!==body.foot)ch.foot=[orig.foot,body.foot];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
     try{if(isNew)await db.collection("members").add(body);else await db.doc("members/"+m.id).update(body);if(!isNew)lastEdited=m.id;
       if(isNew)addLog({kind:"add",name:body.name,changes:{atk:[null,body.atk],mid:[null,body.mid],def:[null,body.def]}});
       else if(Object.keys(ch).length)addLog({kind:"edit",memberId:m.id,name:body.name,changes:ch,score:[r2((orig.atk+orig.mid+orig.def)/3),body.score]});closeSheet();toast(isNew?"추가했습니다":"저장했습니다");}catch(err){dbErr(err);}};
@@ -785,6 +793,8 @@ function logLine(l){
     const c=l.changes||{},parts=[];
     for(const k of ["atk","mid","def"])if(c[k])parts.push(`${AREA_KO[k]} ${c[k][0]}→<b class="${c[k][1]>c[k][0]?"up":"down"}">${c[k][1]}</b>`);
     if(c.gk)parts.push(c.gk[1]?"골키퍼 잘함 체크":"골키퍼 잘함 해제");
+    if(c.injured)parts.push(c.injured[1]?"🩹 부상 등록":"부상 해제");
+    if(c.foot)parts.push(`주발 ${FOOT[c.foot[0]]||"미입력"}→${FOOT[c.foot[1]]||"미입력"}`);
     if(c.active)parts.push(c.active[1]?"활동 중으로":"휴면으로");
     if(c.name)parts.push(`이름 ${esc(c.name[0])}→${esc(c.name[1])}`);
     const tier=l.score&&tierOf(l.score[0]).label!==tierOf(l.score[1]).label?` <span style="display:inline-flex;gap:2px;vertical-align:middle">${tierHtml(l.score[0])}→${tierHtml(l.score[1])}</span>`:"";
