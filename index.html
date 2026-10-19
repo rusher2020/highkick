@@ -240,6 +240,7 @@ let pairs=[]; // 같은 팀으로 묶을 짝 [{a,b}] (상위-하위 멘토 묶�
 let logs=[];   // 운영진 변경 기록 (최근 200건)
 const me=()=>{try{return localStorage.getItem("hkName")||"";}catch(e){return "";}};
 const setMe=v=>{try{localStorage.setItem("hkName",v);}catch(e){}};
+const OPERATORS=["이진환","이상연","조경범","조윤규"];
 async function addLog(o){if(!db)return;try{await db.collection("logs").add({at:Date.now(),by:me()||"이름 없음",...o});}catch(e){}}
 const headcount=()=>attend.size+guests.length;
 let teamCount=null;
@@ -516,20 +517,24 @@ function openEdit(m){
     <label class="toggle"><input type="checkbox" id="fGK" ${m.gk?"checked":""}> 골키퍼 잘함 <span class="small muted">(팀마다 1명씩 나눠 배치)</span></label>
     <label class="toggle"><input type="checkbox" id="fAct" ${m.active!==false?"checked":""}> 활동 중 (끄면 출석 목록에서 숨김)</label>
     ${isNew?"":`<div class="small muted">경기 보정치 <span class="num">${(m.adj||0)>0?"+":""}${(m.adj||0).toFixed(1)}</span> · 현재 점수 <span class="num">${eff(m).toFixed(1)}</span></div>`}
-    <label class="field"><span class="label">수정한 운영진 (변경 기록에 남아요)</span><input type="text" id="fBy" value="${esc(by)}" placeholder="예: 이진환" maxlength="10"></label>
+    ${by?`<div class="small muted">변경 기록에 <b>${esc(by)}</b>(으)로 남아요 <button type="button" class="btn ghost small" id="chgBy" style="padding:2px 6px">바꾸기</button></div>`
+      :`<div class="field"><span class="label">누가 수정하나요? (한 번 고르면 이 기기에서 기억해요)</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-by="${n}">${n}</button>`).join("")}</div></div>`}
     ${isNew?"":memberLogHtml(m.id)}
     <button class="btn primary big" type="submit">저장</button>
     ${isNew?"":`<button type="button" class="btn danger" id="del">${confirmDel?"한 번 더 누르면 삭제됩니다":"회원 삭제"}</button>`}
   </form></div>`;
   $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};
   $("#cx").onclick=closeSheet;
-  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{by=$("#fBy").value;m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;v[b.dataset.a]=+b.dataset.s;draw();});
-  const del=$("#del");if(del)del.onclick=async()=>{by=$("#fBy").value;if(!confirmDel){m.name=$("#fName").value;confirmDel=true;draw();return;}
-    if(by.trim())setMe(by.trim());
+  document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;v[b.dataset.a]=+b.dataset.s;draw();});
+  const keepForm=()=>{m.name=$("#fName").value;m.gk=$("#fGK").checked;m.active=$("#fAct").checked;};
+  document.querySelectorAll("[data-by]").forEach(b=>b.onclick=()=>{keepForm();by=b.dataset.by;setMe(by);draw();});
+  const cb=$("#chgBy");if(cb)cb.onclick=()=>{keepForm();by="";draw();};
+  const del=$("#del");if(del)del.onclick=async()=>{if(!confirmDel){m.name=$("#fName").value;confirmDel=true;draw();return;}
+    if(by)setMe(by);
     try{await db.doc("members/"+m.id).delete();addLog({kind:"delete",memberId:m.id,name:orig.name});attend.delete(m.id);saveAttend();closeSheet();toast("삭제했습니다");}catch(e){dbErr(e);}};
   $("#editForm").onsubmit=async e=>{e.preventDefault();const name=$("#fName").value.trim();if(!name){toast("이름을 입력해 주세요");return;}
     const body={name,atk:v.atk,mid:v.mid,def:v.def,score:avg(),pos:posOf(v),gk:$("#fGK").checked,active:$("#fAct").checked,adj:m.adj||0};
-    const byNow=$("#fBy").value.trim();if(!byNow){toast("수정한 운영진 이름을 적어 주세요");$("#fBy").focus();return;}setMe(byNow);
+    if(!by){toast("누가 수정하는지 운영진 이름을 골라 주세요");return;}setMe(by);
     const ch={};
     if(!isNew){for(const k of ["atk","mid","def"])if(orig[k]!==body[k])ch[k]=[orig[k],body[k]];
       if(orig.gk!==body.gk)ch.gk=[orig.gk,body.gk];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}

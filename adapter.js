@@ -8,6 +8,9 @@
   const cfg = window.HIGHKICK_FIREBASE || {};
   const configured = !!(cfg.apiKey && cfg.projectId && !String(cfg.apiKey).startsWith("여기에"));
   let fs = null, auth = null, isAdmin = false;
+  const OPERATORS = ["이진환", "이상연", "조경범", "조윤규"];
+  const getName = function () { try { return localStorage.getItem("hkName") || ""; } catch (e) { return ""; } };
+  const setName = function (v) { try { v ? localStorage.setItem("hkName", v) : localStorage.removeItem("hkName"); } catch (e) {} };
 
   /*
    * 운영진 PIN 로그인
@@ -32,7 +35,7 @@
     const b = document.getElementById("whoBtn");
     if (!b) return;
     b.hidden = !configured;
-    b.textContent = isAdmin ? "운영진 · 로그아웃" : "운영진 로그인";
+    b.textContent = isAdmin ? (getName() || "운영진") + " · 로그아웃" : "운영진 로그인";
   }
 
   function login() {
@@ -55,8 +58,8 @@
       try {
         if (!auth.currentUser) await auth.signInAnonymously();
         await fs.collection("admins").doc(auth.currentUser.uid).set({ pin: pin, at: Date.now() });
-        isAdmin = true; paintWho(); close();
-        alertBox("운영진으로 로그인했어요");
+        isAdmin = true; paintWho();
+        pickName(pin, close);
       } catch (err) {
         if (err && err.code === "permission-denied") alertBox("PIN이 맞지 않아요");
         else if (err && (err.code === "auth/operation-not-allowed" || err.code === "auth/admin-restricted-operation"))
@@ -66,10 +69,31 @@
       }
     };
   }
+  /* PIN이 맞으면 두 번째 단계: 누구인지 고르기 (변경 기록에 이 이름이 남음) */
+  function pickName(pin, close) {
+    const form = document.getElementById("pinForm");
+    form.onsubmit = function (e) { e.preventDefault(); };
+    form.innerHTML = '<div class="row spread"><h2>누구세요?</h2></div>' +
+      '<p class="small muted" style="margin:0">PIN이 확인됐어요. 이름을 고르면 점수를 바꿀 때 변경 기록에 자동으로 남아요.</p>' +
+      '<div class="chips" style="grid-template-columns:repeat(2,1fr)">' +
+      OPERATORS.map(function (n) { return '<button type="button" class="chip" data-op="' + n + '" style="justify-content:center;padding:14px 8px;font-size:1rem"><span class="nm" style="text-align:center">' + n + '</span></button>'; }).join("") +
+      '</div>';
+    form.querySelectorAll("[data-op]").forEach(function (b) {
+      b.onclick = async function () {
+        const n = b.getAttribute("data-op");
+        setName(n);
+        try { await fs.collection("admins").doc(auth.currentUser.uid).set({ pin: pin, name: n, at: Date.now() }); } catch (e) {}
+        paintWho(); close();
+        alertBox(n + "님, 운영진으로 로그인했어요");
+      };
+    });
+  }
+
   async function logout() {
     if (!auth || !auth.currentUser) return;
     try { await fs.collection("admins").doc(auth.currentUser.uid).delete(); } catch (e) {}
     await auth.signOut();
+    setName("");
     alertBox("로그아웃했어요");
   }
 
