@@ -238,7 +238,14 @@ let attend=new Set();
 let guests=[];
 let pairW=new Map();
 let pairs=[]; // 같은 팀으로 묶을 짝 [{a,b}] (상위-하위 멘토 묶기)
-let logs=[];   // 운영진 변경 기록 (최근 200건)
+let logs=[];
+let pubNext=null; // 회원 공개용 다음 경기 안내 (이름만, 점수 없음)
+async function savePublic(teams,matchId){
+  if(!db)return;
+  const keep=teams!==undefined?teams:(pubNext&&pubNext.date===gameDate()?pubNext.teams:null);
+  const mid=matchId!==undefined?matchId:(pubNext&&pubNext.date===gameDate()?pubNext.matchId||null:null);
+  try{await db.doc("public/next").set({date:gameDate(),count:headcount(),teams:keep||null,matchId:mid,updatedAt:Date.now()});}catch(e){}
+}   // 운영진 변경 기록 (최근 200건)
 const me=()=>{try{return localStorage.getItem("hkName")||"";}catch(e){return "";}};
 const setMe=v=>{try{localStorage.setItem("hkName",v);}catch(e){}};
 const OPERATORS=["이진환","이상연","조경범","조윤규"];
@@ -582,11 +589,13 @@ function openBulk(){
 }
 
 /* ---------- actions ---------- */
-function saveAttend(){if(!db)return;clearTimeout(attendTimer);attendTimer=setTimeout(async()=>{try{await db.doc("state/attendance").set({date:today(),matchDate:gameDate(),ids:[...attend],guests:guests.map(g=>{const o={...g};delete o.guest;return o;})});}catch(e){dbErr(e);}attendTimer=null;},700);}
+function saveAttend(){if(!db)return;clearTimeout(attendTimer);attendTimer=setTimeout(async()=>{savePublic();try{await db.doc("state/attendance").set({date:today(),matchDate:gameDate(),ids:[...attend],guests:guests.map(g=>{const o={...g};delete o.guest;return o;})});}catch(e){dbErr(e);}attendTimer=null;},700);}
 async function confirmTeams(){
   const o=options[optIdx];
   const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":""))})),games:[],applied:false,deltas:{}};
-  try{await db.collection("matches").add(body);toast("기록에 저장했습니다. 경기 후 스코어를 입력하세요.");options=[];renderMake();switchTab("records");}catch(e){dbErr(e);}
+  try{const ref=await db.collection("matches").add(body);
+    savePublic(o.teams.map(t=>({names:t.map(m=>m.name),gk:t.map(m=>!!m.gk),guest:t.map(m=>!!m.guest)})),ref&&ref.id||null);
+    toast("기록에 저장했습니다. 경기 후 스코어를 입력하세요.");options=[];renderMake();switchTab("records");}catch(e){dbErr(e);}
 }
 async function applyMatch(mt,undo){
   try{
@@ -659,7 +668,7 @@ document.addEventListener("click",e=>{
     if(pendingDelete!==id){pendingDelete=id;renderRecords();setTimeout(()=>{if(pendingDelete===id){pendingDelete=null;renderRecords();}},4000);return;}
     pendingDelete=null;
     if(mt.applied){toast("먼저 반영 취소를 해 주세요");renderRecords();return;}
-    db.doc("matches/"+id).delete().then(()=>toast("기록을 삭제했습니다")).catch(dbErr);return;}
+    db.doc("matches/"+id).delete().then(()=>{toast("기록을 삭제했습니다");if(pubNext&&pubNext.matchId===id)savePublic(null,null);}).catch(dbErr);return;}
 });
 
 document.addEventListener("change",e=>{
@@ -976,6 +985,7 @@ renderAll();
     done("m");},e=>{});
   db.collection("matches").onSnapshot(s=>{matches=s.docs.map(d=>({id:d.id,...d.data()}));done("x");},e=>{});
   db.collection("logs").orderBy("at","desc").limit(200).onSnapshot(s=>{logs=s.docs.map(d=>({id:d.id,...d.data()}));if(document.getElementById("logList"))renderLogList();},e=>{});
+  db.doc("public/next").onSnapshot(s=>{pubNext=s.exists?s.data():null;},e=>{});
   db.doc("state/pairs").onSnapshot(s=>{pairs=s.exists?(s.data().list||[]):[];renderMake();},e=>{});
   db.doc("state/attendance").onSnapshot(s=>{const d=s.exists?s.data():null;
     if(d&&!attendTimer&&d.matchDate)matchDate=d.matchDate;

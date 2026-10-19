@@ -46,14 +46,48 @@
     main.hidden = true; if (tabs) tabs.hidden = true;
     if (!lock) {
       lock = document.createElement("div"); lock.id = "lockPanel"; lock.className = "wrap";
-      lock.innerHTML = '<section class="view"><div class="panel empty" style="padding:36px 20px">' +
-        '<div style="font-size:2.2rem;line-height:1">🔒</div>' +
-        '<strong style="margin-top:10px">운영진 전용 페이지예요</strong>' +
-        '<p style="margin:6px 0 18px">티어표, 라인업, 경기 기록은 운영진 로그인 후에 볼 수 있어요.</p>' +
-        '<button class="btn primary" id="lockLogin">운영진 로그인</button></div></section>';
+      lock.innerHTML = '<section class="view" id="pubView"><div class="empty">다음 경기 정보를 불러오는 중…</div></section>';
       main.parentNode.insertBefore(lock, main);
-      document.getElementById("lockLogin").onclick = function () { login(); };
+      if (fs && !unsubPub) unsubPub = fs.collection("public").doc("next").onSnapshot(function (d) { renderPublic(d.exists ? d.data() : null); }, function () { renderPublic(null); });
     }
+  }
+
+  /* 로그인 안 한 회원용: 다음 경기 날짜 + 확정된 팀별 명단 (점수·티어 없음) */
+  let unsubPub = null;
+  const BIBC = ["var(--bib1)", "var(--bib2)", "var(--bib3)", "var(--bib4)", "var(--bib5)", "var(--bib6)"];
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function dateLabel(ds) {
+    const p = String(ds).split("-"); if (p.length < 3) return ds;
+    const d = new Date(+p[0], p[1] - 1, +p[2]), t = new Date(); t.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - t) / 86400000);
+    const dd = diff === 0 ? "오늘" : diff === 1 ? "내일" : diff > 0 ? "D-" + diff : "지난 경기";
+    return { text: (+p[1]) + "월 " + (+p[2]) + "일 (" + "일월화수목금토"[d.getDay()] + ")", dd: dd };
+  }
+  function renderPublic(pub) {
+    const v = document.getElementById("pubView"); if (!v) return;
+    const loginBtn = '<button class="btn" id="lockLogin" style="align-self:center">🔒 운영진 로그인</button>';
+    let h = "";
+    if (!pub || !pub.date) {
+      h = '<div class="panel empty" style="padding:32px 18px"><div style="font-size:2rem;line-height:1">⚽</div><strong style="margin-top:8px">다음 경기가 아직 정해지지 않았어요</strong>운영진이 경기 날짜와 팀을 정하면 여기에 나와요.</div>';
+    } else {
+      const dl = dateLabel(pub.date);
+      h = '<div class="panel" style="display:flex;align-items:center;gap:14px">' +
+        '<div style="flex:1;min-width:0"><div class="label">다음 경기</div><b style="font-family:var(--f-display);font-weight:400;font-size:1.5rem">' + esc(dl.text) + '</b>' +
+        '<div class="small muted">참석 <b class="num">' + (pub.count || 0) + '</b>명' + (pub.teams ? " · " + pub.teams.length + "팀" : "") + '</div></div>' +
+        '<span style="background:var(--accent);color:var(--surface);border-radius:12px;padding:8px 12px;font:700 1.05rem var(--f-num)">' + esc(dl.dd) + '</span></div>';
+      if (pub.teams && pub.teams.length) {
+        h += '<h2>팀 편성</h2><div class="teams reveal">' + pub.teams.map(function (t, i) {
+          return '<article class="team"><header><span class="bib" style="background:' + BIBC[i % 6] + '"></span><span class="t">' + (i + 1) + '팀</span><span class="avg small muted">' + t.names.length + '명</span></header>' +
+            '<ul>' + t.names.map(function (n, j) {
+              return '<li><button type="button" style="cursor:default"><span class="nm">' + esc(n) + ((t.gk || [])[j] ? " 🧤" : "") + '</span>' + ((t.guest || [])[j] ? '<span class="pos">용병</span>' : "") + '</button></li>';
+            }).join("") + '</ul></article>';
+        }).join("") + '</div>';
+      } else {
+        h += '<div class="panel empty"><strong>팀 편성 준비 중이에요</strong>운영진이 팀을 확정하면 바로 여기에 나와요.</div>';
+      }
+    }
+    v.innerHTML = h + loginBtn;
+    document.getElementById("lockLogin").onclick = function () { login(); };
   }
 
   function paintWho() {

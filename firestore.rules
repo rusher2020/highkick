@@ -26,6 +26,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // 다음 경기 안내(팀별 명단, 점수 없음) — 누구나 보기, 운영진만 수정
+    match /public/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // 회원·경기 기록·출석 등 — 운영진만 보기·수정
     match /{collection}/{docId} {
       allow read, write: if collection != 'admins' && collection != 'logs' && isAdmin();
