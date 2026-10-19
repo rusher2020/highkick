@@ -19,10 +19,17 @@ service cloud.firestore {
                              && pinOk(request.resource.data.pin);
     }
 
-    // 회원·기록·출석 등 — 누구나 보기, 운영진만 수정
+    // 운영진 변경 기록 — 누구나 보기, 운영진만 추가, 아무도 고치거나 지울 수 없음
+    match /logs/{id} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // 회원·경기 기록·출석 등 — 누구나 보기, 운영진만 수정
     match /{collection}/{docId} {
       allow read: if collection != 'admins';
-      allow write: if collection != 'admins' && isAdmin();
+      allow write: if collection != 'admins' && collection != 'logs' && isAdmin();
     }
   }
 }
