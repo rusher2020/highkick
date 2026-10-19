@@ -223,7 +223,13 @@
   });
 
   document.addEventListener("DOMContentLoaded", function () {
-    paintWho(); authReady.then(paintLock);
+    paintWho(); paintLock(); authReady.then(paintLock);
+    if (configured && !window.firebase) {
+      setTimeout(function () {
+        const v = document.getElementById("pubView");
+        if (v) v.innerHTML = '<div class="panel empty"><strong>데이터를 불러오지 못했어요</strong>인터넷 연결을 확인하고 새로고침해 주세요. 카카오톡에서 열었다면 오른쪽 위 메뉴에서 다른 브라우저로 열어 보세요.</div>';
+      }, 300);
+    }
     if (!configured) {
       const m = document.getElementById("v-make");
       if (m) setTimeout(function () {
