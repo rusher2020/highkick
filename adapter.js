@@ -199,6 +199,8 @@
   /* 이미지 저장: 휴대폰은 공유 시트(카톡으로 바로), 그 외는 파일 다운로드 */
   const downloads = {
     save: async function (req) {
+      // 카카오톡·인스타 등 앱 안 브라우저는 파일 저장이 안 됨 → 화면에 이미지를 띄워 길게 눌러 저장하게 함
+      if (/KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent)) throw { code: "unavailable" };
       const blob = req.data instanceof Blob ? req.data : new Blob([req.data]);
       const file = new File([blob], req.filename, { type: blob.type || "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {

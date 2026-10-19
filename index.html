@@ -222,8 +222,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792413318"></script>
-<script src="adapter.js?v=1792413318"></script>
+<script src="config.js?v=1792414244"></script>
+<script src="adapter.js?v=1792414244"></script>
 <script>
 (function(){
 "use strict";
@@ -396,10 +396,11 @@ function improve(teams,deadline){
 function coPairs(teams){const s=new Set();for(const t of teams){const ids=t.map(m=>m.id);for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)s.add(pk(ids[i],ids[j]));}return s;}
 function searchTeams(players,caps,budgetMs){
   setCtx(players);
-  const t0=performance.now(),deadline=t0+(budgetMs||900),res=[];
+  const t0=performance.now(),deadline=t0+(budgetMs||900),res=[],randGaps=[];
   for(let run=0;run<60;run++){
     if(run>=3&&performance.now()>deadline)break;
     const teams=run===0?snakeStart(players,caps,0):run%2?randomStart(players,caps):snakeStart(players,caps,1.2);
+    if(run%2){const a=teams.map(stats).map(x=>x.avg);randGaps.push(Math.max(...a)-Math.min(...a));}
     const c=improve(teams,deadline+400);
     teams.forEach(t=>t.sort((x,y)=>eff(y)-eff(x)));
     res.push({teams,cost:c});
@@ -410,7 +411,10 @@ function searchTeams(players,caps,budgetMs){
   for(const r of res){const sp=coPairs(r.teams);
     if(picked.every(p=>{let d=0;for(const x of sp)if(!p.sp.has(x))d++;return d>=Math.max(4,Math.round(sp.size*.15));}))picked.push({...r,sp});
     if(picked.length===3)break;}
-  return picked.map(p=>({teams:p.teams,cost:p.cost,score:balanceScore(p.teams)}));
+  // 무작위 기준이 부족하면 추가로 몇 번 더 섞어서 비교 기준을 만든다 (계산만, 개선 없음)
+  for(let i=randGaps.length;i<20;i++){const a=randomStart(players,caps).map(stats).map(x=>x.avg);randGaps.push(Math.max(...a)-Math.min(...a));}
+  const baseGap=randGaps.reduce((a,b)=>a+b,0)/randGaps.length;
+  return picked.map((p,rank)=>({teams:p.teams,cost:p.cost,score:balanceScore(p.teams),tried:res.length,baseGap,rank}));
 }
 const PIPS={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 function dieHtml(cls){return `<div class="die ${cls}">${Array.from({length:9},()=>"<i></i>").join("")}</div>`;}
@@ -496,6 +500,7 @@ function renderMake(){
     <div class="balance" style="flex-wrap:wrap"><span class="dot" style="background:var(--${lv[0]})"></span><span>밸런스</span><b>${bs}점</b><span class="small muted">${lv[1]} · 전력 차 ${gap.toFixed(2)}</span>${(()=>{const lo=lastOverlap(o.teams);return lo===null?"":`<span class="small muted" style="margin-left:auto">지난 경기와 겹친 짝 <b class="num" style="font-size:.95rem">${lo}</b></span>`;})()}</div>
     <div class="meta" style="padding:0;gap:4px"><span class="small muted" style="width:100%">예상 승률 (팀 평균 전력 기준)</span>${wins.join("")}</div>
     ${radarHtml(o.teams.map(stats))}
+    ${reasonHtml(o,st)}
     <p class="small muted" style="margin:0">선수 두 명을 차례로 누르면 서로 팀을 바꿉니다.</p>
     <div class="teams">${o.teams.map((t,ti)=>{const s=st[ti],b=BIBS[ti%6];return `<article class="team">
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
@@ -831,6 +836,42 @@ function openPairPicker(){
     $("#pairOk").onclick=()=>{if(!(a&&b&&a!==b))return;if(!pairs.some(p=>(p.a===a&&p.b===b)||(p.a===b&&p.b===a)))pairs.push({a,b});savePairs();options=[];closeSheet();renderMake();toast("짝을 묶었어요");};
   };
   draw();
+}
+/* ---------- 추천 근거 ---------- */
+function reasonHtml(o,st){
+  const k=st.length,rng=a=>Math.max(...a)-Math.min(...a);
+  const mark=(v,g,w)=>v<=g?`<span style="color:var(--good)">●</span>`:v<=w?`<span style="color:var(--warn)">●</span>`:`<span style="color:var(--bad)">●</span>`;
+  // ① 필수 조건
+  const df=st.reduce((a,s)=>a+s.P.DF,0),noDF=st.filter(s=>s.P.DF===0).length;
+  const ap=activePairs(),where=new Map();o.teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
+  const pairOk=ap.filter(p=>where.get(p.a)===where.get(p.b)).length;
+  const sizes=st.map(s=>s.n),sizeOk=rng(sizes)<=1;
+  const ck=(ok,text)=>`<li style="display:flex;gap:6px"><span style="color:var(--${ok===null?"muted":ok?"good":"bad"})">${ok===null?"–":ok?"✓":"✕"}</span><span>${text}</span></li>`;
+  const must=[ck(sizeOk,`팀 인원 ${sizes.join(" · ")}명 (차이 1명 이내)`),
+    df>=k?ck(noDF===0,`팀마다 수비수 1명 이상 (수비수 ${df}명)`):ck(null,`수비수가 ${df}명뿐이라 ${k-df}팀은 수비수 없이 편성 (포지션을 확인해 주세요)`),
+    ap.length?ck(pairOk===ap.length,`같은 팀 묶기 ${ap.length}짝 중 ${pairOk}짝 지킴`):ck(null,"같은 팀 묶기 없음")].join("");
+  // ② 지표별 비교 표
+  const rows=[
+    ["팀 전력 평균",st.map(s=>s.avg),2,.1,.2],
+    ["에이스 (상위 2명 합)",st.map(s=>s.top2),1,.5,1],
+    ["약점 (하위 2명 합)",st.map(s=>s.bot2),1,.5,1],
+    ...AREAS.map(([kk,l])=>[l+" 평균",st.map(s=>s[kk]),1,.25,.5]),
+    ["공격수 수",st.map(s=>s.P.FW),0,1,2],
+    ["수비수 수",st.map(s=>s.P.DF),0,1,2]];
+  const th=`<tr style="color:var(--muted)"><td></td>${st.map((_,i)=>`<td style="padding:4px 6px;text-align:right">${i+1}팀</td>`).join("")}<td style="padding:4px 0 4px 8px;text-align:right">차이</td></tr>`;
+  const tr=rows.map(([l,a,d,g,w])=>{const r=rng(a);return `<tr style="border-top:1px solid var(--line)"><td style="padding:5px 6px 5px 0;white-space:nowrap">${l}</td>${a.map(x=>`<td style="padding:5px 6px;text-align:right">${x.toFixed(d)}</td>`).join("")}<td style="padding:5px 0 5px 8px;text-align:right;white-space:nowrap">${mark(r,g,w)} ${r.toFixed(d)}</td></tr>`;}).join("");
+  // ③ 얼마나 좋아졌나
+  const gap=rng(st.map(s=>s.avg)),base=o.baseGap||0,times=gap>0?base/gap:0;
+  const lo=lastOverlap(o.teams);
+  const sum=o.tried?`후보 조합 <b>${o.tried}개</b>를 만들어 비교한 결과 중 <b>${(o.rank||0)+1}순위</b>예요. 아무렇게나 나누면 팀 전력 차가 평균 <b class="num">${base.toFixed(2)}</b>인데, 이 조합은 <b class="num">${gap.toFixed(2)}</b>${times>=1.5?` (<b>${times>=10?"10배 이상":times.toFixed(1)+"배"}</b> 더 고름)`:""}이에요.`:"";
+  return `<details class="panel" open><summary style="cursor:pointer;font-weight:700">이 조합을 추천하는 근거</summary>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;font-size:.86rem">
+      ${sum?`<p style="margin:0">${sum}</p>`:""}
+      <div><div class="label" style="margin-bottom:4px">반드시 지키는 조건</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px">${must}</ul></div>
+      <div><div class="label" style="margin-bottom:4px">팀별 비교 <span style="font-weight:400">(● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼)</span></div>
+        <div style="overflow-x:auto"><table class="num" style="border-collapse:collapse;width:100%;font-size:.8rem">${th}${tr}</table></div></div>
+      <p class="small muted" style="margin:0">맞추는 순서: 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 공격·수비 인원 → 티어 분포·왼발${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
+    </div></details>`;
 }
 /* ---------- 팀 능력치 레이더 ---------- */
 const BIB_COL=["var(--bib1)","var(--bib2)","var(--bib3)","var(--bib4)","var(--bib5)","var(--bib6)"];
