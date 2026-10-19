@@ -197,7 +197,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
   <p>출석 체크하고 6인 팀을 고르게 나눕니다</p>
   <div class="stats">
     <div><b id="stMembers" class="num">–</b><span>등록 회원</span></div>
-    <div><b id="stAttend" class="num">0</b><span>오늘 출석</span></div>
+    <div><b id="stAttend" class="num">0</b><span id="stAttendLbl">출석</span></div>
     <div><b id="stTeams" class="num">–</b><span>예상 팀 수</span></div>
   </div>
 </div></div>
@@ -246,6 +246,8 @@ let teamCount=null;
 let options=[], optIdx=0, selected=null;
 let tab="make", memberSort="score", memberOrder=null, lastEdited=null;
 let attendTimer=null;
+let matchDate=null; // 다음 경기 날짜 (출석·조합·기록·이미지에 쓰임)
+const gameDate=()=>matchDate||today();
 
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -394,7 +396,12 @@ function renderMake(){
     <div class="row spread"><b>투표 캡처로 출석 불러오기</b><span class="small muted">참석·불참·신규 자동 정리</span></div>
     <div class="row" style="flex-wrap:nowrap"><label class="btn primary" style="flex:2;text-align:center;cursor:pointer" ${window.HK&&!HK.ocr?"hidden":""}>캡처 이미지 올리기<input type="file" id="shotIn" accept="image/*" multiple hidden></label><button class="btn" id="pasteNames" style="flex:1">이름 붙여넣기</button></div>
   </div>
-  <div class="row spread"><h2>오늘 출석 <span class="num">${n}</span>명${guests.length?` <span class="small muted">(용병 ${guests.length})</span>`:""}</h2><div class="row"><button class="btn ghost small" id="allOn">전체 선택</button><button class="btn ghost small" id="allOff">비우기</button></div></div>
+  <div class="panel row spread" style="gap:10px">
+    <div><div class="label">경기 날짜</div><b style="font-size:1.05rem">${fmtDate(gameDate())}</b>${gameDate()===today()?` <span class="small" style="color:var(--accent)">오늘</span>`:gameDate()<today()?` <span class="small" style="color:var(--warn)">지난 날짜</span>`:""}</div>
+    <div class="row" style="gap:6px"><button class="btn small" data-day="0">오늘</button><button class="btn small" data-day="1">내일</button>
+      <label class="btn small" style="position:relative;cursor:pointer">날짜 선택<input type="date" id="gameDate" value="${gameDate()}" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label></div>
+  </div>
+  <div class="row spread"><h2>출석 <span class="num">${n}</span>명${guests.length?` <span class="small muted">(용병 ${guests.length})</span>`:""}</h2><div class="row"><button class="btn ghost small" id="allOn">전체 선택</button><button class="btn ghost small" id="allOff">비우기</button></div></div>
   <div class="chips">${active.map(m=>`<button class="chip stripe t-${tierOf(m.score).k}" data-att="${m.id}" aria-pressed="${attend.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></button>`).join("")}</div>
   <div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b>같은 팀 묶기 <span class="num">${activePairs().length}</span></b><button class="btn small" id="addPair">짝 추가</button></div>
@@ -562,10 +569,10 @@ function openBulk(){
 }
 
 /* ---------- actions ---------- */
-function saveAttend(){if(!db)return;clearTimeout(attendTimer);attendTimer=setTimeout(async()=>{try{await db.doc("state/attendance").set({date:today(),ids:[...attend],guests:guests.map(g=>{const o={...g};delete o.guest;return o;})});}catch(e){dbErr(e);}attendTimer=null;},700);}
+function saveAttend(){if(!db)return;clearTimeout(attendTimer);attendTimer=setTimeout(async()=>{try{await db.doc("state/attendance").set({date:today(),matchDate:gameDate(),ids:[...attend],guests:guests.map(g=>{const o={...g};delete o.guest;return o;})});}catch(e){dbErr(e);}attendTimer=null;},700);}
 async function confirmTeams(){
   const o=options[optIdx];
-  const body={date:today(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":""))})),games:[],applied:false,deltas:{}};
+  const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":""))})),games:[],applied:false,deltas:{}};
   try{await db.collection("matches").add(body);toast("기록에 저장했습니다. 경기 후 스코어를 입력하세요.");options=[];renderMake();switchTab("records");}catch(e){dbErr(e);}
 }
 async function applyMatch(mt,undo){
@@ -603,6 +610,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.gedit)return openGuestEdit(b.dataset.gedit);
   if(b.id==="addPair")return openPairPicker();
   if(b.id==="openLogs")return openLogs();
+  if(b.dataset.day!==undefined){const d=new Date();d.setDate(d.getDate()+(+b.dataset.day));matchDate=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");saveAttend();renderMake();return;}
   if(b.dataset.radar){const i=+b.dataset.radar;radarHidden.has(i)?radarHidden.delete(i):radarHidden.add(i);renderMake();return;}
   if(b.dataset.rmpair){pairs=pairs.filter((_,i)=>i!==+b.dataset.rmpair);savePairs();options=[];renderMake();return;}
   if(b.dataset.rmguest){guests=guests.filter(g=>g.id!==b.dataset.rmguest);options=[];renderMake();saveAttend();return;}
@@ -616,7 +624,7 @@ document.addEventListener("click",e=>{
     renderMake();return;}
   if(b.id==="confirm")return confirmTeams();
   if(b.id==="pasteNames")return openPasteNames();
-  if(b.id==="pngOpt"){const o=options[optIdx];return sharePng(today(),o.teams.map(t=>t.map(m=>({name:m.name,gk:!!m.gk,guest:!!m.guest}))));}
+  if(b.id==="pngOpt"){const o=options[optIdx];return sharePng(gameDate(),o.teams.map(t=>t.map(m=>({name:m.name,gk:!!m.gk,guest:!!m.guest}))));}
   if(b.dataset.fb)return openFeedback(b.dataset.fb);
   if(b.dataset.png){const mt=matches.find(x=>x.id===b.dataset.png);
     return sharePng(mt.date,mt.teams.map(t=>t.names.map(n=>{const g=/\(용병\)$/.test(n);return {name:n.replace(/\(용병\)$/,""),guest:g,gk:false};})));}
@@ -641,6 +649,10 @@ document.addEventListener("click",e=>{
     db.doc("matches/"+id).delete().then(()=>toast("기록을 삭제했습니다")).catch(dbErr);return;}
 });
 
+document.addEventListener("change",e=>{
+  if(!e.target||e.target.id!=="gameDate"||!e.target.value)return;
+  matchDate=e.target.value;saveAttend();renderMake();
+});
 document.addEventListener("submit",e=>{
   if(!e.target||e.target.id!=="guestForm")return;e.preventDefault();
   const nm=($("#guestName").value.trim()||("용병"+(guests.length+1))).slice(0,20);
@@ -951,6 +963,7 @@ renderAll();
   db.collection("logs").orderBy("at","desc").limit(200).onSnapshot(s=>{logs=s.docs.map(d=>({id:d.id,...d.data()}));if(document.getElementById("logList"))renderLogList();},e=>{});
   db.doc("state/pairs").onSnapshot(s=>{pairs=s.exists?(s.data().list||[]):[];renderMake();},e=>{});
   db.doc("state/attendance").onSnapshot(s=>{const d=s.exists?s.data():null;
+    if(d&&!attendTimer&&d.matchDate)matchDate=d.matchDate;
     if(d){const nw=new Set(d.ids||[]);const same=nw.size===attend.size&&[...nw].every(x=>attend.has(x));if(!attendTimer){const ng=d.guests||[];const gsame=ng.length===guests.length&&ng.every((g,i)=>g.id===guests[i].id);
       if(!same||!gsame){attend=nw;guests=ng.map(g=>({...g}));options=[];}}}
     else if(!s.metadata.hasPendingWrites&&!attendTimer){attend=new Set();guests=[];}
