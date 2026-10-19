@@ -18,6 +18,8 @@
    * 2) admins/{그 ID} 문서에 입력한 PIN을 저장 → Firestore 규칙이 PIN이 맞을 때만 저장을 허용
    * 3) 이후 쓰기는 규칙이 admins/{ID}의 PIN을 다시 확인 (PIN을 바꾸면 기존 기기는 자동으로 권한 해제)
    */
+  /* 운영진만 볼 수 있음: 로그인 확인이 끝난 뒤에야 저장소를 앱에 넘겨줌 */
+  let readyResolve; const authReady = new Promise(function (r) { readyResolve = r; });
   if (configured && window.firebase) {
     firebase.initializeApp(cfg);
     fs = firebase.firestore();
@@ -25,10 +27,33 @@
     auth.onAuthStateChanged(async function (u) {
       isAdmin = false;
       if (u) {
-        try { const d = await fs.collection("admins").doc(u.uid).get(); isAdmin = d.exists; } catch (e) {}
+        try {
+          const d = await fs.collection("admins").doc(u.uid).get();
+          // PIN이 바뀌었으면 admins 문서가 있어도 회원 데이터를 못 읽으므로 한 번 더 확인
+          if (d.exists) { await fs.collection("members").limit(1).get(); isAdmin = true; }
+        } catch (e) { isAdmin = false; }
       }
-      paintWho();
+      paintWho(); paintLock();
+      readyResolve();
     });
+  } else { readyResolve(); }
+
+  function paintLock() {
+    const main = document.getElementById("main"), tabs = document.querySelector(".tabs");
+    if (!main) return;
+    let lock = document.getElementById("lockPanel");
+    if (isAdmin || !configured) { if (lock) lock.remove(); main.hidden = false; if (tabs) tabs.hidden = false; return; }
+    main.hidden = true; if (tabs) tabs.hidden = true;
+    if (!lock) {
+      lock = document.createElement("div"); lock.id = "lockPanel"; lock.className = "wrap";
+      lock.innerHTML = '<section class="view"><div class="panel empty" style="padding:36px 20px">' +
+        '<div style="font-size:2.2rem;line-height:1">🔒</div>' +
+        '<strong style="margin-top:10px">운영진 전용 페이지예요</strong>' +
+        '<p style="margin:6px 0 18px">티어표, 라인업, 경기 기록은 운영진 로그인 후에 볼 수 있어요.</p>' +
+        '<button class="btn primary" id="lockLogin">운영진 로그인</button></div></section>';
+      main.parentNode.insertBefore(lock, main);
+      document.getElementById("lockLogin").onclick = function () { login(); };
+    }
   }
 
   function paintWho() {
@@ -85,6 +110,7 @@
         try { await fs.collection("admins").doc(auth.currentUser.uid).set({ pin: pin, name: n, at: Date.now() }); } catch (e) {}
         paintWho(); close();
         alertBox(n + "님, 운영진으로 로그인했어요");
+        setTimeout(function () { location.reload(); }, 600); // 운영진 권한으로 데이터를 다시 불러옴
       };
     });
   }
@@ -95,6 +121,7 @@
     await auth.signOut();
     setName("");
     alertBox("로그아웃했어요");
+    setTimeout(function () { location.reload(); }, 600);
   }
 
   function alertBox(msg) {
@@ -132,7 +159,7 @@
   window.HK = { login: login, user: function () { return isAdmin; }, ocr: false, configured: configured };
   window.claude = {
     use: async function (name) {
-      if (name === "db") return fs;
+      if (name === "db") { await authReady; return isAdmin ? fs : null; }
       if (name === "downloads") return downloads;
       return null; // 이미지 인식(sample)은 외부 호스팅에서 아직 꺼 둠 → '이름 붙여넣기' 사용
     }
@@ -162,7 +189,7 @@
   });
 
   document.addEventListener("DOMContentLoaded", function () {
-    paintWho();
+    paintWho(); authReady.then(paintLock);
     if (!configured) {
       const m = document.getElementById("v-make");
       if (m) setTimeout(function () {

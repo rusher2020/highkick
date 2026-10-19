@@ -5,7 +5,7 @@
 - 화면: GitHub Pages (`index.html`)
 - 데이터: Firebase Firestore (실시간 반영)
 - 수정 권한: 운영진 PIN을 입력한 기기만 (`firestore.rules`)
-- 보기: 링크만 있으면 누구나, 로그인 없이
+- 보기: 운영진 로그인 후에만 (티어표·라인업·경기 기록 모두)
 
 ## 처음 설정
 
