@@ -95,6 +95,13 @@
     if (!b) return;
     b.hidden = !configured;
     b.textContent = isAdmin ? (getName() || "운영진") + " · 로그아웃" : "운영진 로그인";
+    let bk = document.getElementById("backupBtn");
+    if (!bk && b.parentNode) {
+      bk = document.createElement("button"); bk.id = "backupBtn"; bk.className = "who"; bk.textContent = "백업";
+      bk.style.marginLeft = "6px"; b.parentNode.insertBefore(bk, b);
+      bk.onclick = backup;
+    }
+    if (bk) bk.hidden = !isAdmin;
   }
 
   function login() {
@@ -147,6 +154,22 @@
         setTimeout(function () { location.reload(); }, 600); // 운영진 권한으로 데이터를 다시 불러옴
       };
     });
+  }
+
+  /* 운영진 전용: 회원·경기 기록·출석·묶기·공개 안내·변경 기록을 JSON 파일 하나로 내려받기 */
+  async function backup() {
+    if (!fs || !isAdmin) return;
+    try {
+      alertBox("백업 파일을 만드는 중…");
+      const out = { exportedAt: new Date().toISOString() };
+      for (const col of ["members", "matches", "state", "public", "logs"]) {
+        const snap = await fs.collection(col).get();
+        out[col] = {}; snap.forEach(function (d) { out[col][d.id] = d.data(); });
+      }
+      const d = new Date(), stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+      await downloads.save({ filename: "하이킥_백업_" + stamp + ".json", data: new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }) });
+      alertBox("백업 파일을 저장했어요");
+    } catch (e) { if (!(e && e.code === "declined")) alertBox("백업하지 못했어요: " + ((e && (e.code || e.message)) || "")); }
   }
 
   async function logout() {
