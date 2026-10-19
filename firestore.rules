@@ -1,0 +1,20 @@
+rules_version = '2';
+// 하이킥 팀 밸런서 — 누구나 볼 수 있고, 운영진 구글 계정만 수정할 수 있습니다.
+// 운영진이 바뀌면 아래 목록만 고치고 Firebase 콘솔 > Firestore > 규칙에 다시 게시하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'operator1@gmail.com',
+          'operator2@gmail.com',
+          'operator3@gmail.com'
+        ];
+    }
+    match /{collection}/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
