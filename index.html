@@ -19,7 +19,7 @@ img{max-width:100%}
   --pitch:#1D5A37; --pitch-ink:#F3F7F1; --accent:#1D7A48; --accent-soft:#D7EBDD;
   --good:#1D7A48; --warn:#B8741A; --bad:#B83A2E;
   --bib1:#F2762E; --bib2:#E3BC14; --bib3:#2F7FE0; --bib4:#E04F8E; --bib5:#6FB33A; --bib6:#8A5CD6;
-  --tS:#B9861E; --tA:#2E6FC4; --tB:#2E8A5C; --tC:#6B7A72; --tD:#9AA59F;
+  --tS:#E8770E; --tA:#8E44C9; --tB:#2F7FE0; --tC:#23A35A; --tD:#8C9893;
   --f-display:"Black Han Sans","IBM Plex Sans KR",system-ui,sans-serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -28,12 +28,12 @@ img{max-width:100%}
   --bg:#0D1511; --surface:#15201A; --sunk:#1B2820; --ink:#E5EDE7; --muted:#93A39A; --line:#283730;
   --pitch:#123A24; --pitch-ink:#E8F2EA; --accent:#4FBF7E; --accent-soft:#1E3A2A;
   --good:#4FBF7E; --warn:#E0A24A; --bad:#E86B5F;
-  --tS:#E0B04A; --tA:#6FA6EE; --tB:#5BBE8A; --tC:#9AA8A0; --tD:#6E7C74; color-scheme:dark}}
+  --tS:#F59A3C; --tA:#B77CE8; --tB:#5FA2F2; --tC:#4CC77F; --tD:#8A9690; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0D1511; --surface:#15201A; --sunk:#1B2820; --ink:#E5EDE7; --muted:#93A39A; --line:#283730;
   --pitch:#123A24; --pitch-ink:#E8F2EA; --accent:#4FBF7E; --accent-soft:#1E3A2A;
   --good:#4FBF7E; --warn:#E0A24A; --bad:#E86B5F;
-  --tS:#E0B04A; --tA:#6FA6EE; --tB:#5BBE8A; --tC:#9AA8A0; --tD:#6E7C74; color-scheme:dark}
+  --tS:#F59A3C; --tA:#B77CE8; --tB:#5FA2F2; --tC:#4CC77F; --tD:#8A9690; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -91,6 +91,10 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .tier.G{background:transparent;color:var(--muted);border:1px dashed var(--muted);min-width:34px}
 .chip.guest{border-style:dashed;background:var(--sunk)}
 .gx{border:0;background:none;color:var(--muted);padding:0 2px;flex:none}
+.t-S{--tc:var(--tS)}.t-A{--tc:var(--tA)}.t-B{--tc:var(--tB)}.t-C{--tc:var(--tC)}.t-D{--tc:var(--tD)}
+.tint{box-shadow:inset 4px 0 0 var(--tc);background:color-mix(in srgb,var(--tc) 10%,var(--surface))}
+.stripe{box-shadow:inset 4px 0 0 var(--tc)}
+.tb{display:inline-flex;flex:none;line-height:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
 .tier.S{background:var(--tS)}.tier.A{background:var(--tA)}.tier.B{background:var(--tB)}.tier.C{background:var(--tC)}.tier.D{background:var(--tD)}
 
 .seg{display:inline-flex;background:var(--sunk);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
@@ -109,7 +113,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .pill{font-size:.72rem;padding:2px 7px;border-radius:999px;background:var(--sunk);color:var(--muted)}
 .pill.ok{color:var(--good)}
 .pill.no{color:var(--bad)}
-.team ul{list-style:none;margin:0;padding:6px 6px 8px}
+.team ul{list-style:none;margin:0;padding:6px 6px 8px;display:flex;flex-direction:column;gap:3px}
 .team li button{width:100%;display:flex;align-items:center;gap:8px;background:none;border:1px solid transparent;border-radius:8px;padding:5px 6px;text-align:left}
 .team li button .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .team li button .pos{font-size:.72rem;color:var(--muted)}
@@ -244,7 +248,14 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const r2=x=>Math.round(x*100)/100;
 const eff=m=>r2((m.score||3)+(m.adj||0));
 function tierOf(s){const b=Math.max(1,Math.min(5,Math.floor(s)));const L={5:"S",4:"A",3:"B",2:"C",1:"D"}[b];return {k:L,label:L+(s%1>=.5&&b<5?"+":"")};}
-const tierHtml=s=>{const t=tierOf(s);return `<span class="tier ${t.k}">${t.label}</span>`;};
+const TIER_NAME={S:"레전드",A:"에이스",B:"주전",C:"유망주",D:"새싹"};
+function tierHtml(s){const t=tierOf(s),plus=t.label.endsWith("+");
+  return `<span class="tb t-${t.k}" title="${t.label} ${TIER_NAME[t.k]}" aria-label="${t.label} ${TIER_NAME[t.k]}"><svg viewBox="0 0 24 28" width="22" height="26" aria-hidden="true">`+
+    `<path d="M12 1.5 22 5v8.2c0 6.6-4.3 10.9-10 13.3C6.3 24.1 2 19.8 2 13.2V5z" fill="var(--tc)"${t.k==="S"?' stroke="#FFD34D" stroke-width="1.6"':""}/>`+
+    `<path d="M12 3.6 20 6.4v3.4C15 8.6 9 8.6 4 9.8V6.4z" fill="#fff" fill-opacity=".22"/>`+
+    (t.k==="S"?`<path d="M8.4 4.4 10 6l2-2.6L14 6l1.6-1.6-.6 3H9z" fill="#FFD34D"/>`:"")+
+    `<text x="12" y="${plus?17.5:18}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-weight="700" font-size="${plus?9.5:11.5}" fill="#fff">${t.label}</text></svg></span>`;}
+const tierName=s=>TIER_NAME[tierOf(s).k];
 const byId=id=>members.find(m=>m.id===id);
 const AREAS=[["atk","공격"],["mid","미드"],["def","수비"]];
 function posOf(m){const v=[m.atk,m.mid,m.def],mx=Math.max(...v);if(v.every(x=>x===mx))return "ALL";return ["FW","MF","DF"][v.indexOf(mx)];}
@@ -380,7 +391,7 @@ function renderMake(){
     <div class="row" style="flex-wrap:nowrap"><label class="btn primary" style="flex:2;text-align:center;cursor:pointer" ${window.HK&&!HK.ocr?"hidden":""}>캡처 이미지 올리기<input type="file" id="shotIn" accept="image/*" multiple hidden></label><button class="btn" id="pasteNames" style="flex:1">이름 붙여넣기</button></div>
   </div>
   <div class="row spread"><h2>오늘 출석 <span class="num">${n}</span>명${guests.length?` <span class="small muted">(용병 ${guests.length})</span>`:""}</h2><div class="row"><button class="btn ghost small" id="allOn">전체 선택</button><button class="btn ghost small" id="allOff">비우기</button></div></div>
-  <div class="chips">${active.map(m=>`<button class="chip" data-att="${m.id}" aria-pressed="${attend.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></button>`).join("")}</div>
+  <div class="chips">${active.map(m=>`<button class="chip stripe t-${tierOf(m.score).k}" data-att="${m.id}" aria-pressed="${attend.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></button>`).join("")}</div>
   <div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b>같은 팀 묶기 <span class="num">${activePairs().length}</span></b><button class="btn small" id="addPair">짝 추가</button></div>
     ${pairs.length?`<div class="chips" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${pairs.map((p,i)=>{const a=byId(p.a),b=byId(p.b);if(!a||!b)return "";const on=attend.has(p.a)&&attend.has(p.b);
@@ -409,7 +420,7 @@ function renderMake(){
       <div class="meta"><span class="pill ${s.gk?"ok":"no"}">GK ${s.gk?"있음":"없음"}</span>${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
       <div class="meta" style="padding-top:4px"><span class="pill">주포지션 공${s.P.FW} 미${s.P.MF} 수${s.P.DF}${s.P.ALL?` 올${s.P.ALL}`:""}</span></div>
       <div class="meta" style="padding-top:4px"><span class="pill num">공 ${s.atk.toFixed(1)}</span><span class="pill num">미 ${s.mid.toFixed(1)}</span><span class="pill num">수 ${s.def.toFixed(1)}</span><span class="pill num">회원 합 ${s.sum.toFixed(1)}</span></div>
-      <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
+      <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
     <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
   }
   v.innerHTML=h;
@@ -438,7 +449,7 @@ function renderMembers(){
     v.innerHTML=h;return;
   }
   h+=`<div class="panel" style="display:flex;flex-direction:column;gap:8px"><div class="dist">${["S","A","B","C","D"].map(k=>`<span style="width:${cnt[k]/tot*100}%;background:var(--t${k})"></span>`).join("")}</div>
-  <div class="legend">${["S","A","B","C","D"].map(k=>`<span>${k} <b class="num">${cnt[k]}</b></span>`).join("")}</div></div>
+  <div class="legend">${["S","A","B","C","D"].map(k=>`<span style="display:inline-flex;align-items:center;gap:4px">${tierHtml({S:5,A:4,B:3,C:2,D:1}[k])}${TIER_NAME[k]} <b class="num">${cnt[k]}</b></span>`).join("")}</div></div>
   <details class="panel small"><summary style="cursor:pointer;font-weight:700">점수 주는 기준</summary>
   <table style="width:100%;border-collapse:collapse;margin-top:8px">
   <tr><td style="padding:5px 0;width:58px">${tierHtml(5)} 5</td><td>팀 에이스. 혼자 경기 흐름을 바꿈 (선출·상급자)</td></tr>
@@ -451,7 +462,7 @@ function renderMembers(){
   <p style="margin:.6rem 0 0" class="muted">두 단계 사이면 0.5점 (예: 3과 4 사이 → 3.5). 운영진 3명이 각자 매긴 뒤 평균을 0.5 단위로 반올림하세요. 3점(B)이 가장 많고 S는 1~2명 정도가 적당합니다.</p>
 </details>
   <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 기본 + 보정</span>`}</div>
-  <ul class="mlist">${list.map(m=>{const a=m.adj||0;return `<li><button data-edit="${m.id}" style="${m.active===false?"opacity:.5;":""}${m.id===lastEdited?"background:var(--accent-soft)":""}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}<span class="sub num">공 ${m.atk} · 미 ${m.mid} · 수 ${m.def}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
+  <ul class="mlist">${list.map(m=>{const a=m.adj||0;return `<li><button data-edit="${m.id}" class="tint t-${tierOf(m.score).k}" style="${m.active===false?"opacity:.5;":""}${m.id===lastEdited?"background:var(--accent-soft)":""}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.gk?" 🧤":""}<span class="sub num">${tierName(m.score)} · 공 ${m.atk} · 미 ${m.mid} · 수 ${m.def}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
   <div class="panel row spread"><div class="small"><b>분기 재평가</b><div class="muted">모든 회원의 보정치를 0으로 되돌립니다.</div></div><button class="btn danger small" id="resetAdj">보정치 초기화</button></div>`;
   v.innerHTML=h;
 }
