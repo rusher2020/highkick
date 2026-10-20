@@ -223,12 +223,13 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792456893"></script>
-<script src="adapter.js?v=1792456893"></script>
+<script src="config.js?v=1792469647"></script>
+<script src="adapter.js?v=1792469647"></script>
 <script>
 (function(){
 "use strict";
-const POS={FW:"공격",DF:"수비"};
+const POS={WG:"사이드",MF:"중앙",DF:"수비",FW:"공격",ST:"공격"};
+const POS_KEYS=["WG","MF","DF"];
 const BIBS=[["1팀","var(--bib1)"],["2팀","var(--bib2)"],["3팀","var(--bib3)"],["4팀","var(--bib4)"],["5팀","var(--bib5)"],["6팀","var(--bib6)"]];
 const SCORES=[1,1.5,2,2.5,3,3.5,4,4.5,5];
 const ADJ_CAP=1.5, STEP=0.1;
@@ -280,16 +281,25 @@ const byId=id=>members.find(m=>m.id===id);
 // ---- 능력치 5가지 (1~5점): 슈터·드리블러·패스마스터·수비력·활동량 / 별도 표기: 장신·왼발 ----
 const AREAS=[["sht","슈터"],["dri","드리블러"],["pas","패스마스터"],["def","수비력"],["sta","활동량"]];
 const AREA_SHORT={sht:"슛",dri:"드",pas:"패",def:"수",sta:"활"};
-const POS_WEIGHT={FW:{sht:.3,dri:.2,pas:.2,def:.1,sta:.2},DF:{sht:.05,dri:.1,pas:.2,def:.4,sta:.25}};
+// 6대6 기본 대형: 골키퍼(돌아가며) + 사이드 2 · 중앙 1 · 수비 2
+const POS_WEIGHT={
+  WG:{sht:.25,dri:.3,pas:.1,def:.1,sta:.25},   // 사이드: 돌파·슈팅·활동량
+  MF:{sht:.2,dri:.15,pas:.3,def:.1,sta:.25},   // 중앙: 패스·연계, 공격 가담
+  DF:{sht:.05,dri:.05,pas:.2,def:.45,sta:.25}}; // 수비: 수비력
+POS_WEIGHT.FW=POS_WEIGHT.ST=POS_WEIGHT.MF;
 const half=x=>Math.round(x*2)/2;
-const suggestPos=v=>Math.max(v.sht??3,v.dri??3)>=(v.def??3)?"FW":"DF";
+function suggestPos(v,allowed){let best="MF",bv=-1;for(const p of allowed||POS_KEYS){const x=overallOf(v,p);if(x>bv+1e-9){bv=x;best=p;}}return best;}
 function overallOf(v,pos){const w=POS_WEIGHT[pos]||POS_WEIGHT.FW;return r2(AREAS.reduce((a,[k])=>a+(v[k]??3)*w[k],0));}
 // 예전 데이터 이행: 공격력 → 슈터, 기술(미드) → 드리블러·패스마스터 임시값(미입력 표시), 피지컬 → 장신 표기로 대체
 function norm(m){
   const b=m.score||3,tec=m.tec??m.mid??b,legacy=half(((m.atk??b)+tec+(m.def??b))/3);
   const o={...m,sht:m.sht??m.atk??b,dri:m.dri??tec,pas:m.pas??tec,def:m.def??b,sta:m.sta??legacy,tall:!!m.tall,tallSet:m.tallSet??(m.tall!=null)};
   o.unset=Array.isArray(m.unset)?m.unset:[m.dri==null?"드리블러":"",m.pas==null?"패스마스터":"",m.sta==null?"활동량":""].filter(Boolean);
-  o.pos=m.posSet&&(m.pos==="FW"||m.pos==="DF")?m.pos:suggestPos(o);
+  const posOk=m.posSet&&POS_KEYS.includes(m.pos);
+  o.pos=posOk?m.pos:suggestPos(o,m.posSet&&m.pos==="FW"?["WG","MF"]:POS_KEYS);
+  o.pos2=(Array.isArray(m.pos2)?m.pos2:[]).filter(x=>POS_KEYS.includes(x)&&x!==o.pos);
+  o.posSet2=m.posSet2??posOk;
+  if(!o.posSet2&&!o.unset.includes("포지션"))o.unset=[...o.unset,"포지션"];
   o.score=overallOf(o,o.pos);
   return o;
 }
@@ -317,7 +327,21 @@ function stats(all){
     top2:(e[0]||0)+(e[1]||0),bot2:n>=2?e[n-1]+e[n-2]:(e[0]||0),
     left:team.filter(m=>m.foot==="L").length,inj:team.filter(m=>m.injured).length,
     T:team.reduce((o,m)=>{o[tierOf(m.score).k]++;return o;},{S:0,A:0,B:0,C:0,D:0}),
-    P:team.reduce((o,m)=>{o[m.pos==="DF"?"DF":"FW"]++;return o;},{FW:0,DF:0})};
+    P:team.reduce((o,m)=>{o[POS_KEYS.includes(m.pos)?m.pos:"MF"]++;return o;},{WG:0,MF:0,DF:0}),
+    canDF:team.filter(m=>m.pos==="DF"||(m.pos2||[]).includes("DF")).length,
+    form:formFill(team,all.length)};
+}
+// 대형 채우기: 필요한 자리(수비→사이드→중앙→수비→사이드 순, 6번째부터는 골키퍼 등 자유 자리)를
+// 주 포지션 → 가능 포지션 순으로 채우고, 못 채운 자리를 센다 (능력치 모르는 용병은 자유 자리에 들어감)
+const FORM_ORDER=["DF","WG","C","DF","WG"],SLOT={WG:"WG",DF:"DF",MF:"C",ST:"C",FW:"C"},SLOT_NAME={WG:"사이드",C:"중앙",DF:"수비"};
+function formFill(team,size){
+  const need={WG:0,C:0,DF:0};FORM_ORDER.slice(0,Math.min(5,size)).forEach(p=>need[p]++);
+  const left=[];
+  for(const m of team){const q=SLOT[m.pos]||"C";if(need[q]>0)need[q]--;else left.push(m);}
+  left.sort((a,b)=>(a.pos2||[]).length-(b.pos2||[]).length);
+  for(const m of left){const q=(m.pos2||[]).map(x=>SLOT[x]).find(x=>need[x]>0);if(q)need[q]--;}
+  const short=Object.entries(need).filter(([,v])=>v>0);
+  return {short:short.reduce((a,[,v])=>a+v,0),miss:short.map(([p,v])=>SLOT_NAME[p]+(v>1?" "+v:"")).join(", ")};
 }
 const pk=(a,b)=>a<b?a+"|"+b:b+"|"+a;
 function buildPairW(){
@@ -341,9 +365,10 @@ function lastOverlap(teams){ // 직전 경기와 그대로 겹치는 쌍 수
 
 /*
  * 팀 조합 엔진
- * ① 필수 조건: 팀 인원(정해진 크기), 같은 팀 묶기 짝, 팀마다 수비수 1명 이상 → 어기면 아주 큰 벌점
+ * ① 필수 조건: 팀 인원(정해진 크기), 같은 팀 묶기 짝, 팀마다 수비 가능한 선수 1명 이상 → 어기면 아주 큰 벌점
+ *    대형(사이드 2·중앙 1·수비 2, 나머지 1명은 골키퍼 등 자유)을 못 채우는 자리는 자리마다 큰 벌점
  * ② 맞출 지표(중요한 순): 팀 전력 평균 > 에이스(상위 2명) > 약점(하위 2명) > 능력치 5가지 평균
- *    > 주특기 선수(항목 4점 이상) 분산 > 공격·수비 인원 > 티어 분포 > 장신·왼발 분산 > 지난 조합 겹침
+ *    > 주특기 선수(항목 4점 이상) 분산 > 대형 자리 채우기·포지션 인원 > 티어 분포 > 장신·왼발 분산 > 지난 조합 겹침
  *    각 지표는 오늘 참석자들의 실력 편차로 나눠 같은 기준(정규화)으로 비교하고,
  *    최대-최소가 아니라 "모든 팀이 전체 평균에서 벗어난 정도(제곱 평균)"로 계산
  * ③ 탐색: 여러 시작 조합 → 1:1 교환(가장 좋은 것) → 막히면 2:2 교환 → 반복
@@ -352,18 +377,19 @@ let CTX={sd:.6,sk:{sht:.6,dri:.6,pas:.6,def:.6,sta:.6}};
 const sdOf=a=>{if(!a.length)return .6;const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.max(.35,Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length));};
 function setCtx(players){CTX={sd:sdOf(players.map(eff)),sk:Object.fromEntries(AREAS.map(([k])=>[k,sdOf(players.map(p=>p[k]))]))};}
 function dev2(arr,scale){const m=arr.reduce((a,b)=>a+b,0)/arr.length;let s=0;for(const x of arr){const d=(x-m)/scale;s+=d*d;}return s/arr.length;}
-const BW={power:12,top:5,bot:6,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1.5,tier:.8,tall:.6,left:.5,overlap:.08};
+const BW={power:12,top:5,bot:6,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1.2,form:6,tier:.8,tall:.6,left:.5,overlap:.08};
 function coreDev(st){const k=st.length,ns=Math.max(1,st.reduce((a,s)=>a+(s.n-s.guest),0)/k),sd=CTX.sd;
   return {power:dev2(st.map(s=>s.avg),sd/Math.sqrt(ns)),top:dev2(st.map(s=>s.top2),sd),bot:dev2(st.map(s=>s.bot2),sd),ns};}
 function cost(teams){
   const st=teams.map(stats),k=teams.length,cd=coreDev(st);
   let c=BW.power*cd.power+BW.top*cd.top+BW.bot*cd.bot;
   for(const [a] of AREAS)c+=BW.stat[a]*dev2(st.map(s=>s[a]),CTX.sk[a]/Math.sqrt(cd.ns));
-  c+=BW.pos*(dev2(st.map(s=>s.P.FW),1)+dev2(st.map(s=>s.P.DF),1));
+  for(const p of POS_KEYS)c+=BW.pos*dev2(st.map(s=>s.P[p]),1);
+  c+=BW.form*st.reduce((a,s)=>a+s.form.short,0);
   for(const t of ["S","A","B","C","D"])c+=BW.tier*(t==="S"||t==="A"?1.5:1)*dev2(st.map(s=>s.T[t]),1);
   for(const [a] of AREAS)c+=BW.spec*dev2(st.map(s=>s.spec[a]),1);
   c+=BW.tall*dev2(st.map(s=>s.tall),1)+BW.left*dev2(st.map(s=>s.left),1);
-  const df=st.reduce((a,s)=>a+s.P.DF,0);if(df>=k)c+=500*st.filter(s=>s.P.DF===0).length;
+  const df=st.reduce((a,s)=>a+s.canDF,0);if(df>=k)c+=500*st.filter(s=>s.canDF===0).length;
   return c+pairCost(teams)+overlap(teams)*BW.overlap;
 }
 function balanceScore(teams){const cd=coreDev(teams.map(stats));return Math.max(0,Math.min(100,Math.round(100*Math.exp(-(cd.power+.4*cd.top+.4*cd.bot)/1.2))));}
@@ -509,7 +535,7 @@ function renderMake(){
     <div class="teams">${o.teams.map((t,ti)=>{const s=st[ti],b=BIBS[ti%6];return `<article class="team">
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
       <div class="meta">${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
-      <div class="meta" style="padding-top:4px"><span class="pill">공격 ${s.P.FW} · 수비 ${s.P.DF}</span></div>
+      <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.form.short?`<span class="pill" style="color:var(--bad)">대형 부족: ${s.form.miss}</span>`:`<span class="pill" style="color:var(--good)">대형 ✓</span>`}</div>
       <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}</div>
       <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
     <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
@@ -552,8 +578,10 @@ function renderMembers(){
   <p style="margin:.6rem 0 0"><b>슈터</b> 슈팅·골 결정력·침투 · <b>드리블러</b> 드리블 돌파·볼 키핑·탈압박 · <b>패스마스터</b> 패스 정확도·시야·연계 · <b>수비력</b> 대인 방어·위치 선정·태클·커버 · <b>활동량</b> 많이 뛰는지·압박·체력. 다섯 항목을 위 기준으로 각각 매기면 포지션별 비중으로 종합 점수가 계산되고, 티어는 종합 점수로 정해집니다.</p>
   <p style="margin:.4rem 0 0"><span class="ft tall">장신</span> 키·제공권이 좋은 선수, <span class="ft lf">왼발</span> 왼발잡이는 점수와 별개로 표기하고, 팀을 짤 때 한 팀에 몰리지 않게 나눕니다.</p>
   <div style="overflow-x:auto;margin-top:8px"><table class="num" style="border-collapse:collapse;font-size:.8rem;min-width:100%"><tr style="color:var(--muted)"><td style="padding:3px 6px 3px 0">비중</td><td>슈터</td><td>드리블러</td><td>패스마스터</td><td>수비력</td><td>활동량</td></tr>
-    <tr><td style="padding:3px 6px 3px 0"><b>공격수</b></td><td><b>30%</b></td><td>20%</td><td>20%</td><td>10%</td><td>20%</td></tr>
-    <tr><td style="padding:3px 6px 3px 0"><b>수비수</b></td><td>5%</td><td>10%</td><td>20%</td><td><b>40%</b></td><td>25%</td></tr></table></div>
+    <tr><td style="padding:3px 6px 3px 0"><b>사이드</b></td><td>25%</td><td><b>30%</b></td><td>10%</td><td>10%</td><td>25%</td></tr>
+    <tr><td style="padding:3px 6px 3px 0"><b>중앙</b></td><td>20%</td><td>15%</td><td><b>30%</b></td><td>10%</td><td>25%</td></tr>
+    <tr><td style="padding:3px 6px 3px 0"><b>수비</b></td><td>5%</td><td>5%</td><td>20%</td><td><b>45%</b></td><td>25%</td></tr></table></div>
+  <p style="margin:.6rem 0 0">6대6 대형은 <b>골키퍼(돌아가며) + 사이드 2 · 중앙 1 · 수비 2</b>를 기준으로, 팀마다 사이드 2 · 중앙 1 · 수비 2 자리가 채워지도록 짜고, 주 포지션으로 모자라면 "가능 포지션"으로 등록한 선수가 그 자리를 메웁니다.</p>
   <p style="margin:.6rem 0 0" class="muted">두 단계 사이면 0.5점 (예: 3과 4 사이 → 3.5). 운영진 3명이 각자 매긴 뒤 평균을 0.5 단위로 반올림하세요. 3점(B)이 가장 많고 S는 1~2명 정도가 적당합니다.</p>
 </details>
   <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 기본 + 보정</span>`}</div>
@@ -561,7 +589,7 @@ function renderMembers(){
     <div class="small"><b>삭제할 회원을 눌러서 고르세요.</b> 능력치·보정치는 다른 회원에게 영향이 없고, 삭제 기록은 변경 기록에 남아요. 잠시 쉬는 회원은 삭제 대신 회원 수정에서 "활동 중"을 끄면 돼요.</div>
     ${me()?"":`<div class="field"><span class="label">누가 삭제하나요?</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-delby="${n}">${n}</button>`).join("")}</div></div>`}
     <div class="row spread"><span class="small">선택 <b class="num">${delSel.size}</b>명${delSel.size?` · ${[...delSel].map(id=>esc((byId(id)||{}).name||"")).join(", ")}`:""}</span><button class="btn danger small" id="delGo" ${delSel.size?"":"disabled"}>${delConfirm?"한 번 더 누르면 삭제":"선택한 회원 삭제"}</button></div></div>`:""}
-  <ul class="mlist">${list.map(m=>{const a=m.adj||0,pk=delSel.has(m.id);return `<li><button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-edit="${m.id}"`} class="tint t-${tierOf(m.score).k}" style="${m.active===false&&!pk?"opacity:.5;":""}${m.id===lastEdited&&!delMode?"background:var(--accent-soft)":""}${pk?"background:#FBE3E1;outline:2px solid var(--bad);outline-offset:-2px":""}">${tierHtml(m.score)}<span class="nm">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span> `:""}${esc(m.name)}${badges(m)}<span class="sub num">${tierName(m.score)} · ${m.pos==="DF"?"수비":"공격"} · ${statLine(m)}${m.unset&&m.unset.length?` · <b style="color:var(--warn)">${m.unset.join("·")} 미입력</b>`:""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
+  <ul class="mlist">${list.map(m=>{const a=m.adj||0,pk=delSel.has(m.id);return `<li><button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-edit="${m.id}"`} class="tint t-${tierOf(m.score).k}" style="${m.active===false&&!pk?"opacity:.5;":""}${m.id===lastEdited&&!delMode?"background:var(--accent-soft)":""}${pk?"background:#FBE3E1;outline:2px solid var(--bad);outline-offset:-2px":""}">${tierHtml(m.score)}<span class="nm">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span> `:""}${esc(m.name)}${badges(m)}<span class="sub num">${tierName(m.score)} · ${POS[m.pos]}${m.pos2&&m.pos2.length?"("+m.pos2.map(x=>POS[x]).join("·")+")":""} · ${statLine(m)}${m.unset&&m.unset.length?` · <b style="color:var(--warn)">${m.unset.join("·")} 미입력</b>`:""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
   <div class="panel row spread"><div class="small"><b>분기 재평가</b><div class="muted">모든 회원의 보정치를 0으로 되돌립니다.</div></div><button class="btn danger small" id="resetAdj">보정치 초기화</button></div>`;
   v.innerHTML=h;
 }
@@ -596,15 +624,17 @@ function closeSheet(){$("#sheetRoot").innerHTML="";}
 function openEdit(m){
   const isNew=!m;m=norm(m||{name:"",score:3,adj:0,active:true});
   const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;
-  let pos=m.pos,posTouched=!!m.posSet;
-  const orig={name:m.name,...v,tall,pos:m.pos,active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
+  let pos=m.pos,posTouched=!!m.posSet2,pos2=[...(m.pos2||[])];
+  const orig={name:m.name,...v,tall,pos:m.pos,pos2:pos2.join(","),active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
   const avg=()=>overallOf(v,pos);
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label>
     ${AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(s=>`<button type="button" data-a="${a}" data-s="${s}" aria-pressed="${s===v[a]}">${s}</button>`).join("")}</div></div>`).join("")}
-    <div class="field"><span class="label">포지션 ${posTouched?"":`<span style="font-weight:400">(슈터·드리블러·수비력으로 자동 추천 중)</span>`}</span><div class="seg"><button type="button" data-pos="FW" aria-pressed="${pos==="FW"}">공격</button><button type="button" data-pos="DF" aria-pressed="${pos==="DF"}">수비</button></div></div>
-    <div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${pos==="DF"?"수비수":"공격수"} 비중으로 계산</span></div>
+    <div class="field"><span class="label">주 포지션 ${posTouched?"":`<span style="font-weight:400;color:var(--warn)">(능력치로 자동 추천 중 · 눌러서 확정)</span>`}</span><div class="seg">${POS_KEYS.map(p=>`<button type="button" data-pos="${p}" aria-pressed="${pos===p}">${POS[p]}</button>`).join("")}</div>
+      <div class="small muted num" style="margin-top:4px">포지션별 종합: ${POS_KEYS.map(p=>`${POS[p]} <b>${overallOf(v,p).toFixed(1)}</b>`).join(" · ")}</div></div>
+    <div class="field"><span class="label">가능 포지션 <span style="font-weight:400">(여러 개 선택 · 그 자리가 비면 들어갈 수 있는 곳)</span></span><div class="seg">${POS_KEYS.filter(p=>p!==pos).map(p=>`<button type="button" data-pos2="${p}" aria-pressed="${pos2.includes(p)}">${POS[p]}</button>`).join("")}</div></div>
+    <div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${POS[pos]} 비중으로 계산</span></div>
     ${m.unset&&m.unset.length&&!isNew?`<div class="small" style="color:var(--warn)">${m.unset.join("·")}은(는) 아직 입력 전이라 임시 점수예요. 확인 후 저장해 주세요.</div>`:""}
     <div class="field"><span class="label">주발</span><div class="seg">${[["L","왼발"],["R","오른발"],["B","양발"]].map(([k,l])=>`<button type="button" data-foot="${k}" aria-pressed="${foot===k}">${l}</button>`).join("")}</div></div>
     <div class="field"><span class="label">피지컬 ${m.phy!=null&&!m.tallSet&&!isNew?`<span style="font-weight:400">(예전 피지컬 ${m.phy}점)</span>`:""}</span><div class="seg"><button type="button" data-tall="1" aria-pressed="${tall}">장신</button><button type="button" data-tall="0" aria-pressed="${!tall}">해당 없음</button></div></div>
@@ -621,7 +651,8 @@ function openEdit(m){
   $("#cx").onclick=closeSheet;
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;v[b.dataset.a]=+b.dataset.s;if(!posTouched)pos=suggestPos(v);draw();});
   const keepForm=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;};
-  document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{keepForm();pos=b.dataset.pos;posTouched=true;draw();});
+  document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{keepForm();pos=b.dataset.pos;posTouched=true;pos2=pos2.filter(x=>x!==pos);draw();});
+  document.querySelectorAll("[data-pos2]").forEach(b=>b.onclick=()=>{keepForm();const p=b.dataset.pos2;pos2=pos2.includes(p)?pos2.filter(x=>x!==p):[...pos2,p];draw();});
   document.querySelectorAll("[data-foot]").forEach(b=>b.onclick=()=>{keepForm();foot=foot===b.dataset.foot?"":b.dataset.foot;draw();});
   document.querySelectorAll("[data-tall]").forEach(b=>b.onclick=()=>{keepForm();tall=b.dataset.tall==="1";draw();});
   document.querySelectorAll("[data-by]").forEach(b=>b.onclick=()=>{keepForm();by=b.dataset.by;setMe(by);draw();});
@@ -630,11 +661,11 @@ function openEdit(m){
     if(by)setMe(by);
     try{await db.doc("members/"+m.id).delete();addLog({kind:"delete",memberId:m.id,name:orig.name});attend.delete(m.id);saveAttend();closeSheet();toast("삭제했습니다");}catch(e){dbErr(e);}};
   $("#editForm").onsubmit=async e=>{e.preventDefault();const name=$("#fName").value.trim();if(!name){toast("이름을 입력해 주세요");return;}
-    const body={name,...v,tall,score:avg(),pos,posSet:posTouched,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
+    const body={name,...v,tall,score:avg(),pos,pos2,posSet:posTouched,posSet2:posTouched,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
     if(!by){toast("누가 수정하는지 운영진 이름을 골라 주세요");return;}setMe(by);
     const ch={};
     if(!isNew){for(const [k] of AREAS)if(orig[k]!==body[k])ch[k]=[orig[k],body[k]];
-      if(orig.pos!==body.pos)ch.pos=[orig.pos,body.pos];if(orig.injured!==body.injured)ch.injured=[orig.injured,body.injured];if(orig.foot!==body.foot)ch.foot=[orig.foot,body.foot];if(orig.tall!==body.tall)ch.tall=[orig.tall,body.tall];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
+      if(orig.pos!==body.pos)ch.pos=[orig.pos,body.pos];if(orig.pos2!==pos2.join(","))ch.pos2=[orig.pos2,pos2.join(",")];if(orig.injured!==body.injured)ch.injured=[orig.injured,body.injured];if(orig.foot!==body.foot)ch.foot=[orig.foot,body.foot];if(orig.tall!==body.tall)ch.tall=[orig.tall,body.tall];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
     try{if(isNew)await db.collection("members").add(body);else await db.doc("members/"+m.id).update(body);if(!isNew)lastEdited=m.id;
       if(isNew)addLog({kind:"add",name:body.name,changes:Object.fromEntries(AREAS.map(([k])=>[k,[null,body[k]]]))});
       else if(Object.keys(ch).length)addLog({kind:"edit",memberId:m.id,name:body.name,changes:ch,score:[orig.score,body.score]});closeSheet();toast(isNew?"추가했습니다":"저장했습니다");}catch(err){dbErr(err);}};
@@ -646,27 +677,27 @@ function parseLine(line){
   const o={name:"",score:3,adj:0,active:true},nm=[],nums=[];
   for(const t of tk){const u=t.toUpperCase();
     if(/^[1-5](\.[05])?$/.test(t)){nums.push(+t);continue;}
-    if(["FW","공격","공"].includes(u)){o.pos="FW";continue;}
-    if(["DF","수비","수"].includes(u)){o.pos="DF";continue;}
-    if(["ALL","올","올라운드"].includes(u)){o.pos="ALL";continue;}
+    const pp=["WG","W","사이드","윙"].includes(u)?"WG":["MF","CM","중앙","미드","ST","FW","공격","공"].includes(u)?"MF":["DF","수비","수"].includes(u)?"DF":"";
+    if(pp){if(!o.pos)o.pos=pp;else if(pp!==o.pos&&!(o.pos2||[]).includes(pp))o.pos2=[...(o.pos2||[]),pp];continue;}
+    if(["ALL","올","올라운드"].includes(u))continue;
     if(["GK","키퍼","골키퍼"].includes(u))continue;
     if(["장신","키"].includes(u)){o.tall=true;continue;}
     if(["왼발","L"].includes(u)){o.foot="L";continue;}
     nm.push(t);}
   o.name=nm.join(" ");if(!o.name)return null;
   if(nums.length>=2){AREAS.forEach(([k],i)=>o[k]=nums[i]??3);}else{AREAS.forEach(([k])=>o[k]=nums[0]||3);}
-  if(o.pos==="FW"||o.pos==="DF")o.posSet=true;else{delete o.pos;}
+  if(o.pos){o.posSet=true;o.posSet2=true;}
   const n=norm(o);o.pos=n.pos;o.score=n.score;return o;
 }
 function openBulk(){
   $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="bulkForm">
     <div class="row spread"><h2>여러 명 등록</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
-    <p class="small muted" style="margin:0">한 줄에 한 명씩 <b>이름 슈터 드리블러 패스마스터 수비력 활동량</b> 순서로 적어 주세요 (1~5, 0.5 단위). 끝에 "공격"이나 "수비"를 붙이면 포지션이 정해져요. 점수를 하나만 쓰면 다섯 항목에 똑같이, 안 쓰면 3점으로 등록됩니다.</p>
-    <label class="field"><span class="label">명단</span><textarea id="bulkText" placeholder="김민수 4 3.5 2.5 3 3 공격&#10;이준호 2.5 3 4 3.5 4 수비&#10;박지훈 3"></textarea></label>
+    <p class="small muted" style="margin:0">한 줄에 한 명씩 <b>이름 슈터 드리블러 패스마스터 수비력 활동량</b> 순서로 적어 주세요 (1~5, 0.5 단위). 끝에 "사이드·중앙·수비"를 붙이면 포지션이 정해지고, 두 개 이상 쓰면 두 번째부터는 가능 포지션이 돼요. 점수를 하나만 쓰면 다섯 항목에 똑같이, 안 쓰면 3점으로 등록됩니다.</p>
+    <label class="field"><span class="label">명단</span><textarea id="bulkText" placeholder="김민수 4 3.5 2.5 3 3 사이드&#10;이준호 2.5 3 4 3.5 4 수비&#10;박지훈 3"></textarea></label>
     <div id="bulkPrev" class="small muted">0명 인식됨</div>
     <button class="btn primary big" type="submit">등록</button></form></div>`;
   $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
-  const ta=$("#bulkText");ta.oninput=()=>{const rows=ta.value.split("\n").map(parseLine).filter(Boolean);$("#bulkPrev").textContent=`${rows.length}명 인식됨`+(rows.length?` · 예: ${rows[0].name} ${statLine(rows[0])} ${rows[0].pos==="DF"?"수비":"공격"}`:"");};
+  const ta=$("#bulkText");ta.oninput=()=>{const rows=ta.value.split("\n").map(parseLine).filter(Boolean);$("#bulkPrev").textContent=`${rows.length}명 인식됨`+(rows.length?` · 예: ${rows[0].name} ${statLine(rows[0])} ${POS[rows[0].pos]}`:"");};
   $("#bulkForm").onsubmit=async e=>{e.preventDefault();const rows=ta.value.split("\n").map(parseLine).filter(Boolean);if(!rows.length)return;
     try{for(const r of rows)await db.collection("members").add(r);closeSheet();toast(`${rows.length}명을 등록했습니다`);}catch(err){dbErr(err);}};
   setTimeout(()=>ta.focus(),50);
@@ -779,7 +810,7 @@ function openGuestEdit(id){
     <div class="field"><span class="label">능력치</span><div class="seg"><button type="button" data-rt="0" aria-pressed="${!rated}">모름 (무작위 배치)</button><button type="button" data-rt="1" aria-pressed="${rated}">입력 (밸런스에 반영)</button></div></div>
     ${rated?AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(x=>`<button type="button" data-ga="${a}" data-s="${x}" aria-pressed="${x===v[a]}">${x}</button>`).join("")}</div></div>`).join("")+
       `<div class="field"><span class="label">피지컬</span><div class="seg"><button type="button" data-gt="1" aria-pressed="${tall}">장신</button><button type="button" data-gt="0" aria-pressed="${!tall}">해당 없음</button></div></div>`+
-      `<div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(1)}</b></span><span class="small muted" style="margin-left:auto">${suggestPos(v)==="DF"?"수비":"공격"} 포지션으로 계산</span></div>`:""}
+      `<div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(1)}</b></span><span class="small muted" style="margin-left:auto">${POS[suggestPos(v)]} 포지션으로 계산</span></div>`:""}
     <p class="small muted" style="margin:0">용병 정보는 오늘만 쓰이고 회원 명단과 경기 보정에는 들어가지 않아요.</p>
     <button class="btn primary big" type="submit">저장</button></form></div>`;
     $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
@@ -873,13 +904,14 @@ function reasonHtml(o,st){
   const k=st.length,rng=a=>Math.max(...a)-Math.min(...a);
   const mark=(v,g,w)=>v<=g?`<span style="color:var(--good)">●</span>`:v<=w?`<span style="color:var(--warn)">●</span>`:`<span style="color:var(--bad)">●</span>`;
   // ① 필수 조건
-  const df=st.reduce((a,s)=>a+s.P.DF,0),noDF=st.filter(s=>s.P.DF===0).length;
+  const df=st.reduce((a,s)=>a+s.canDF,0),noDF=st.filter(s=>s.canDF===0).length,shortT=st.map((s,i)=>s.form.short?`${i+1}팀 ${s.form.miss}`:"").filter(Boolean);
   const ap=activePairs(),where=new Map();o.teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
   const pairOk=ap.filter(p=>where.get(p.a)===where.get(p.b)).length;
   const sizes=st.map(s=>s.n),sizeOk=rng(sizes)<=1;
   const ck=(ok,text)=>`<li style="display:flex;gap:6px"><span style="color:var(--${ok===null?"muted":ok?"good":"bad"})">${ok===null?"–":ok?"✓":"✕"}</span><span>${text}</span></li>`;
   const must=[ck(sizeOk,`팀 인원 ${sizes.join(" · ")}명 (차이 1명 이내)`),
-    df>=k?ck(noDF===0,`팀마다 수비수 1명 이상 (수비수 ${df}명)`):ck(null,`수비수가 ${df}명뿐이라 ${k-df}팀은 수비수 없이 편성 (포지션을 확인해 주세요)`),
+    df>=k?ck(noDF===0,`팀마다 수비 가능한 선수 1명 이상 (수비 가능 ${df}명)`):ck(null,`수비 가능한 선수가 ${df}명뿐이라 ${k-df}팀은 수비수 없이 편성 (포지션을 확인해 주세요)`),
+    ck(!shortT.length,shortT.length?`대형 자리 부족: ${shortT.join(" / ")} (가능 포지션을 등록하면 채워져요)`:"팀마다 대형 채움 (사이드 2 · 중앙 1 · 수비 2 + 골키퍼 등 자유 1)"),
     ap.length?ck(pairOk===ap.length,`같은 팀 묶기 ${ap.length}짝 중 ${pairOk}짝 지킴`):ck(null,"같은 팀 묶기 없음")].join("");
   // ② 지표별 비교 표
   const rows=[
@@ -888,8 +920,7 @@ function reasonHtml(o,st){
     ["약점 (하위 2명 합)",st.map(s=>s.bot2),1,.5,1],
     ...AREAS.map(([kk,l])=>[l+" 평균",st.map(s=>s[kk]),1,.25,.5]),
     ["주특기 (4점↑) 합",st.map(s=>AREAS.reduce((a,[kk])=>a+s.spec[kk],0)),0,2,4],
-    ["공격수 수",st.map(s=>s.P.FW),0,1,2],
-    ["수비수 수",st.map(s=>s.P.DF),0,1,2],
+    ...POS_KEYS.map(p=>[POS[p]+" 인원",st.map(s=>s.P[p]),0,1,2]),
     ["장신",st.map(s=>s.tall),0,1,2],
     ["왼발",st.map(s=>s.left),0,1,2]];
   const th=`<tr style="color:var(--muted)"><td></td>${st.map((_,i)=>`<td style="padding:4px 6px;text-align:right">${i+1}팀</td>`).join("")}<td style="padding:4px 0 4px 8px;text-align:right">차이</td></tr>`;
@@ -904,7 +935,7 @@ function reasonHtml(o,st){
       <div><div class="label" style="margin-bottom:4px">반드시 지키는 조건</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px">${must}</ul></div>
       <div><div class="label" style="margin-bottom:4px">팀별 비교 <span style="font-weight:400">(● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼)</span></div>
         <div style="overflow-x:auto"><table class="num" style="border-collapse:collapse;width:100%;font-size:.8rem">${th}${tr}</table></div></div>
-      <p class="small muted" style="margin:0">맞추는 순서: 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 주특기 선수 분산 → 공격·수비 인원 → 티어 분포 → 장신·왼발 분산${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
+      <p class="small muted" style="margin:0">맞추는 순서: 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 주특기 선수 분산 → 대형 자리 채우기·포지션 인원 → 티어 분포 → 장신·왼발 분산${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
     </div></details>`;
 }
 /* ---------- 팀 능력치 레이더 ---------- */
@@ -943,6 +974,7 @@ function logLine(l){
     if(c.tall)parts.push(`장신 ${c.tall[0]?"예":"아니오"}→${c.tall[1]?"예":"아니오"}`);
     for(const k of ["sht","dri","pas","atk","tec","def","sta","phy","mid"])if(c[k])parts.push(`${AREA_KO[k]} ${c[k][0]}→<b class="${c[k][1]>c[k][0]?"up":"down"}">${c[k][1]}</b>`);
     if(c.pos)parts.push(`포지션 ${POS[c.pos[0]]||"-"}→${POS[c.pos[1]]||"-"}`);
+    if(c.pos2)parts.push(`가능 포지션 ${(c.pos2[0]||"").split(",").filter(Boolean).map(x=>POS[x]).join("·")||"-"}→${(c.pos2[1]||"").split(",").filter(Boolean).map(x=>POS[x]).join("·")||"-"}`);
     if(c.gk)parts.push(c.gk[1]?"골키퍼 잘함 체크":"골키퍼 잘함 해제");
     if(c.injured)parts.push(c.injured[1]?"🩹 부상 등록":"부상 해제");
     if(c.foot)parts.push(`주발 ${FOOT[c.foot[0]]||"미입력"}→${FOOT[c.foot[1]]||"미입력"}`);
@@ -1037,7 +1069,7 @@ function openImportReview(people){
         const ids=new Set(rows.filter(r=>r.mid).map(r=>r.mid));
         for(const r of rows.filter(r=>!r.mid&&r.act==="new")){
           const ref=db.collection("members").doc();
-          await ref.set({name:r.name.slice(0,20),sht:3,dri:3,pas:3,def:3,sta:3,score:3,pos:"FW",adj:0,active:true});ids.add(ref.id);
+          await ref.set({name:r.name.slice(0,20),sht:3,dri:3,pas:3,def:3,sta:3,score:3,adj:0,active:true});ids.add(ref.id);
         }
         rows.filter(r=>!r.mid&&r.act==="guest").forEach(r=>{if(!guests.some(g=>g.name===r.name))guests.push({id:"g"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:r.name.slice(0,20)});});
         // 비활성(휴면) 회원이 투표했으면 다시 활동으로
