@@ -223,8 +223,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792456454"></script>
-<script src="adapter.js?v=1792456454"></script>
+<script src="config.js?v=1792456893"></script>
+<script src="adapter.js?v=1792456893"></script>
 <script>
 (function(){
 "use strict";
@@ -254,7 +254,7 @@ async function addLog(o){if(!db)return;try{await db.collection("logs").add({at:D
 const headcount=()=>attend.size+guests.length;
 let teamCount=null;
 let options=[], optIdx=0, selected=null;
-let tab="make", memberSort="score", memberOrder=null, lastEdited=null;
+let tab="make", memberSort="score", memberOrder=null, lastEdited=null, delMode=false, delSel=new Set(), delConfirm=false;
 let attendTimer=null;
 let matchDate=null; // 다음 경기 날짜 (출석·조합·기록·이미지에 쓰임)
 const gameDate=()=>matchDate||today();
@@ -533,7 +533,7 @@ function renderMembers(){
   }
   const cnt={S:0,A:0,B:0,C:0,D:0};members.filter(m=>m.active!==false).forEach(m=>cnt[tierOf(m.score).k]++);
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
-  let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
+  let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn small${delMode?"":" danger"}" id="delMode">${delMode?"삭제 취소":"회원 삭제"}</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
   if(!members.length){
     h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 슈터 드리블러 패스마스터 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
     <div class="panel small"><div class="label">점수 기준 (1~5점, 0.5 단위)</div><p style="margin:.4rem 0 0">5 = S · 4 = A · 3 = B · 2 = C · 1 = D. 4.5점은 A+, 3.5점은 B+로 표시됩니다. 경기 결과에 따라 승리 +0.1, 패배 −0.1이 보정되고, 3골 차 이상이면 1.5배가 됩니다. 보정은 ±1.5까지만 쌓입니다.</p></div>`;
@@ -557,7 +557,11 @@ function renderMembers(){
   <p style="margin:.6rem 0 0" class="muted">두 단계 사이면 0.5점 (예: 3과 4 사이 → 3.5). 운영진 3명이 각자 매긴 뒤 평균을 0.5 단위로 반올림하세요. 3점(B)이 가장 많고 S는 1~2명 정도가 적당합니다.</p>
 </details>
   <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 기본 + 보정</span>`}</div>
-  <ul class="mlist">${list.map(m=>{const a=m.adj||0;return `<li><button data-edit="${m.id}" class="tint t-${tierOf(m.score).k}" style="${m.active===false?"opacity:.5;":""}${m.id===lastEdited?"background:var(--accent-soft)":""}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${badges(m)}<span class="sub num">${tierName(m.score)} · ${m.pos==="DF"?"수비":"공격"} · ${statLine(m)}${m.unset&&m.unset.length?` · <b style="color:var(--warn)">${m.unset.join("·")} 미입력</b>`:""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
+  ${delMode?`<div class="panel" style="position:sticky;top:8px;z-index:5;display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--bad)">
+    <div class="small"><b>삭제할 회원을 눌러서 고르세요.</b> 능력치·보정치는 다른 회원에게 영향이 없고, 삭제 기록은 변경 기록에 남아요. 잠시 쉬는 회원은 삭제 대신 회원 수정에서 "활동 중"을 끄면 돼요.</div>
+    ${me()?"":`<div class="field"><span class="label">누가 삭제하나요?</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-delby="${n}">${n}</button>`).join("")}</div></div>`}
+    <div class="row spread"><span class="small">선택 <b class="num">${delSel.size}</b>명${delSel.size?` · ${[...delSel].map(id=>esc((byId(id)||{}).name||"")).join(", ")}`:""}</span><button class="btn danger small" id="delGo" ${delSel.size?"":"disabled"}>${delConfirm?"한 번 더 누르면 삭제":"선택한 회원 삭제"}</button></div></div>`:""}
+  <ul class="mlist">${list.map(m=>{const a=m.adj||0,pk=delSel.has(m.id);return `<li><button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-edit="${m.id}"`} class="tint t-${tierOf(m.score).k}" style="${m.active===false&&!pk?"opacity:.5;":""}${m.id===lastEdited&&!delMode?"background:var(--accent-soft)":""}${pk?"background:#FBE3E1;outline:2px solid var(--bad);outline-offset:-2px":""}">${tierHtml(m.score)}<span class="nm">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span> `:""}${esc(m.name)}${badges(m)}<span class="sub num">${tierName(m.score)} · ${m.pos==="DF"?"수비":"공격"} · ${statLine(m)}${m.unset&&m.unset.length?` · <b style="color:var(--warn)">${m.unset.join("·")} 미입력</b>`:""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
   <div class="panel row spread"><div class="small"><b>분기 재평가</b><div class="muted">모든 회원의 보정치를 0으로 되돌립니다.</div></div><button class="btn danger small" id="resetAdj">보정치 초기화</button></div>`;
   v.innerHTML=h;
 }
@@ -731,6 +735,10 @@ document.addEventListener("click",e=>{
   if(b.dataset.png){const mt=matches.find(x=>x.id===b.dataset.png);
     return sharePng(mt.date,mt.teams.map(t=>t.names.map(n=>{const g=/\(용병\)$/.test(n);return {name:n.replace(/\(용병\)$/,""),guest:g,gk:false};})));}
   if(b.id==="addOne")return openEdit(null);
+  if(b.id==="delMode"){delMode=!delMode;delSel=new Set();delConfirm=false;renderMembers();return;}
+  if(b.dataset.delpick){const id=b.dataset.delpick;delSel.has(id)?delSel.delete(id):delSel.add(id);delConfirm=false;renderMembers();return;}
+  if(b.dataset.delby){setMe(b.dataset.delby);renderMembers();return;}
+  if(b.id==="delGo")return deleteSelected();
   if(b.id==="bulk"||b.id==="bulk2")return openBulk();
   if(b.dataset.edit)return openEdit({...byId(b.dataset.edit)});
   if(b.dataset.sort){memberSort=b.dataset.sort;memberOrder=null;lastEdited=null;renderMembers();return;}
@@ -829,6 +837,17 @@ function openFeedback(matchId){
     };
   };
   draw();
+}
+/* ---------- 회원 여러 명 삭제 ---------- */
+async function deleteSelected(){
+  if(!delSel.size)return;
+  if(!me()){toast("누가 삭제하는지 운영진 이름을 골라 주세요");return;}
+  if(!delConfirm){delConfirm=true;renderMembers();setTimeout(()=>{if(delConfirm){delConfirm=false;if(tab==="members")renderMembers();}},5000);return;}
+  delConfirm=false;const ids=[...delSel];let ok=0;
+  for(const id of ids){const m=byId(id);if(!m)continue;
+    try{await db.doc("members/"+id).delete();addLog({kind:"delete",memberId:id,name:m.name});attend.delete(id);ok++;}catch(e){dbErr(e);break;}}
+  if(ok){saveAttend();options=[];const np=pairs.filter(p=>!ids.includes(p.a)&&!ids.includes(p.b));if(np.length!==pairs.length){pairs=np;savePairs();}}
+  delSel=new Set();delMode=false;memberOrder=null;renderMembers();if(ok)toast(`${ok}명을 삭제했어요`);
 }
 /* ---------- 같은 팀 묶기 ---------- */
 async function savePairs(){if(!db)return;try{await db.doc("state/pairs").set({list:pairs});}catch(e){dbErr(e);}}
