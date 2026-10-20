@@ -1,5 +1,5 @@
 /*
- * 하이킥 팀 밸런서 — Firebase 연결부
+ * 하이킥FC 팀 밸런서 — Firebase 연결부
  * 앱 본문은 window.claude.use("db" | "downloads" | "sample") 로 저장소·다운로드·이미지 인식을 씁니다.
  * 여기서 그 자리를 Firebase Firestore / 브라우저 다운로드로 채웁니다.
  */
@@ -63,7 +63,18 @@
     const dd = diff === 0 ? "오늘" : diff === 1 ? "내일" : diff > 0 ? "D-" + diff : "지난 경기";
     return { text: (+p[1]) + "월 " + (+p[2]) + "일 (" + "일월화수목금토"[d.getDay()] + ")", dd: dd };
   }
+  function timeKo(t) { const p = String(t).split(":").map(Number); return (p[0] < 12 ? "오전 " : "오후 ") + ((p[0] % 12) || 12) + "시" + (p[1] ? " " + p[1] + "분" : ""); }
+  function leftKo(ds, t) {
+    const a = String(ds).split("-").map(Number), b = String(t).split(":").map(Number);
+    const diff = new Date(a[0], a[1] - 1, a[2], b[0], b[1]).getTime() - Date.now();
+    if (diff <= 0) return diff > -3 * 3600e3 ? "경기 중" : "경기 끝남";
+    const m = Math.floor(diff / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
+    return "시작까지 " + (d ? d + "일 " + h + "시간" : h ? h + "시간 " + (m % 60) + "분" : (m % 60) + "분");
+  }
+  let lastPub = null;
+  setInterval(function () { if (lastPub && document.getElementById("pubView")) renderPublic(lastPub); }, 60000);
   function renderPublic(pub) {
+    lastPub = pub;
     const v = document.getElementById("pubView"); if (!v) return;
     const loginBtn = '<button class="btn" id="lockLogin" style="align-self:center">🔒 운영진 로그인</button>';
     let h = "";
@@ -73,6 +84,7 @@
       const dl = dateLabel(pub.date);
       h = '<div class="panel" style="display:flex;align-items:center;gap:14px">' +
         '<div style="flex:1;min-width:0"><div class="label">다음 경기</div><b style="font-family:var(--f-display);font-weight:400;font-size:1.5rem">' + esc(dl.text) + '</b>' +
+        (pub.time ? '<div style="font-weight:700">' + esc(timeKo(pub.time)) + ' 시작 · <span style="color:var(--accent)">' + esc(leftKo(pub.date, pub.time)) + '</span></div>' : "") +
         '<div class="small muted">참석 <b class="num">' + (pub.count || 0) + '</b>명' + (pub.teams ? " · " + pub.teams.length + "팀" : "") + '</div></div>' +
         '<span style="background:var(--accent);color:var(--surface);border-radius:12px;padding:8px 12px;font:700 1.05rem var(--f-num)">' + esc(dl.dd) + '</span></div>';
       if (pub.teams && pub.teams.length) {
@@ -162,7 +174,7 @@
     try {
       alertBox("백업 파일을 만드는 중…");
       const out = { exportedAt: new Date().toISOString() };
-      for (const col of ["members", "matches", "games", "state", "public", "logs"]) {
+      for (const col of ["members", "matches", "games", "weeks", "state", "public", "logs"]) {
         const snap = await fs.collection(col).get();
         out[col] = {}; snap.forEach(function (d) { out[col][d.id] = d.data(); });
       }
