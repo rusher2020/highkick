@@ -223,8 +223,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792469647"></script>
-<script src="adapter.js?v=1792469647"></script>
+<script src="config.js?v=1792469860"></script>
+<script src="adapter.js?v=1792469860"></script>
 <script>
 (function(){
 "use strict";
@@ -329,11 +329,20 @@ function stats(all){
     T:team.reduce((o,m)=>{o[tierOf(m.score).k]++;return o;},{S:0,A:0,B:0,C:0,D:0}),
     P:team.reduce((o,m)=>{o[POS_KEYS.includes(m.pos)?m.pos:"MF"]++;return o;},{WG:0,MF:0,DF:0}),
     canDF:team.filter(m=>m.pos==="DF"||(m.pos2||[]).includes("DF")).length,
-    form:formFill(team,all.length)};
+    form:formFill(team,all.length),min:minCover(team)};
 }
 // 대형 채우기: 필요한 자리(수비→사이드→중앙→수비→사이드 순, 6번째부터는 골키퍼 등 자유 자리)를
 // 주 포지션 → 가능 포지션 순으로 채우고, 못 채운 자리를 센다 (능력치 모르는 용병은 자유 자리에 들어감)
 const FORM_ORDER=["DF","WG","C","DF","WG"],SLOT={WG:"WG",DF:"DF",MF:"C",ST:"C",FW:"C"},SLOT_NAME={WG:"사이드",C:"중앙",DF:"수비"};
+// 최소 포지션: 팀마다 사이드 1 · 중앙 1 · 수비 1 (주 포지션 먼저, 모자라면 가능 포지션)
+function minCover(team){
+  const need={WG:1,C:1,DF:1},left=[];
+  for(const m of team){const q=SLOT[m.pos]||"C";if(need[q]>0)need[q]--;else left.push(m);}
+  left.sort((a,b)=>(a.pos2||[]).length-(b.pos2||[]).length);
+  for(const m of left){const q=(m.pos2||[]).map(x=>SLOT[x]).find(x=>need[x]>0);if(q)need[q]--;}
+  const short=Object.entries(need).filter(([,v])=>v>0);
+  return {short:short.length,miss:short.map(([p])=>SLOT_NAME[p]).join(", ")};
+}
 function formFill(team,size){
   const need={WG:0,C:0,DF:0};FORM_ORDER.slice(0,Math.min(5,size)).forEach(p=>need[p]++);
   const left=[];
@@ -365,7 +374,7 @@ function lastOverlap(teams){ // 직전 경기와 그대로 겹치는 쌍 수
 
 /*
  * 팀 조합 엔진
- * ① 필수 조건: 팀 인원(정해진 크기), 같은 팀 묶기 짝, 팀마다 수비 가능한 선수 1명 이상 → 어기면 아주 큰 벌점
+ * ① 필수 조건: 팀 인원(정해진 크기), 같은 팀 묶기 짝, 팀마다 사이드·중앙·수비 최소 1명씩 → 어기면 아주 큰 벌점
  *    대형(사이드 2·중앙 1·수비 2, 나머지 1명은 골키퍼 등 자유)을 못 채우는 자리는 자리마다 큰 벌점
  * ② 맞출 지표(중요한 순): 팀 전력 평균 > 에이스(상위 2명) > 약점(하위 2명) > 능력치 5가지 평균
  *    > 주특기 선수(항목 4점 이상) 분산 > 대형 자리 채우기·포지션 인원 > 티어 분포 > 장신·왼발 분산 > 지난 조합 겹침
@@ -377,7 +386,7 @@ let CTX={sd:.6,sk:{sht:.6,dri:.6,pas:.6,def:.6,sta:.6}};
 const sdOf=a=>{if(!a.length)return .6;const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.max(.35,Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length));};
 function setCtx(players){CTX={sd:sdOf(players.map(eff)),sk:Object.fromEntries(AREAS.map(([k])=>[k,sdOf(players.map(p=>p[k]))]))};}
 function dev2(arr,scale){const m=arr.reduce((a,b)=>a+b,0)/arr.length;let s=0;for(const x of arr){const d=(x-m)/scale;s+=d*d;}return s/arr.length;}
-const BW={power:12,top:5,bot:6,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1.2,form:6,tier:.8,tall:.6,left:.5,overlap:.08};
+const BW={power:20,top:4,bot:5,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1,form:3,tier:.8,tall:.6,left:.5,overlap:.08};
 function coreDev(st){const k=st.length,ns=Math.max(1,st.reduce((a,s)=>a+(s.n-s.guest),0)/k),sd=CTX.sd;
   return {power:dev2(st.map(s=>s.avg),sd/Math.sqrt(ns)),top:dev2(st.map(s=>s.top2),sd),bot:dev2(st.map(s=>s.bot2),sd),ns};}
 function cost(teams){
@@ -389,7 +398,7 @@ function cost(teams){
   for(const t of ["S","A","B","C","D"])c+=BW.tier*(t==="S"||t==="A"?1.5:1)*dev2(st.map(s=>s.T[t]),1);
   for(const [a] of AREAS)c+=BW.spec*dev2(st.map(s=>s.spec[a]),1);
   c+=BW.tall*dev2(st.map(s=>s.tall),1)+BW.left*dev2(st.map(s=>s.left),1);
-  const df=st.reduce((a,s)=>a+s.canDF,0);if(df>=k)c+=500*st.filter(s=>s.canDF===0).length;
+  c+=500*st.reduce((a,s)=>a+s.min.short,0); // 필수: 팀마다 사이드·중앙·수비 1명씩
   return c+pairCost(teams)+overlap(teams)*BW.overlap;
 }
 function balanceScore(teams){const cd=coreDev(teams.map(stats));return Math.max(0,Math.min(100,Math.round(100*Math.exp(-(cd.power+.4*cd.top+.4*cd.bot)/1.2))));}
@@ -535,7 +544,7 @@ function renderMake(){
     <div class="teams">${o.teams.map((t,ti)=>{const s=st[ti],b=BIBS[ti%6];return `<article class="team">
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
       <div class="meta">${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
-      <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.form.short?`<span class="pill" style="color:var(--bad)">대형 부족: ${s.form.miss}</span>`:`<span class="pill" style="color:var(--good)">대형 ✓</span>`}</div>
+      <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.min.short?`<span class="pill" style="color:var(--bad)">필수 포지션 부족: ${s.min.miss}</span>`:s.form.short?`<span class="pill" style="color:var(--warn)">사이드·중앙·수비 ✓ · 2-1-2엔 ${s.form.miss} 부족</span>`:`<span class="pill" style="color:var(--good)">2-1-2 대형 ✓</span>`}</div>
       <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}</div>
       <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
     <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
@@ -904,14 +913,14 @@ function reasonHtml(o,st){
   const k=st.length,rng=a=>Math.max(...a)-Math.min(...a);
   const mark=(v,g,w)=>v<=g?`<span style="color:var(--good)">●</span>`:v<=w?`<span style="color:var(--warn)">●</span>`:`<span style="color:var(--bad)">●</span>`;
   // ① 필수 조건
-  const df=st.reduce((a,s)=>a+s.canDF,0),noDF=st.filter(s=>s.canDF===0).length,shortT=st.map((s,i)=>s.form.short?`${i+1}팀 ${s.form.miss}`:"").filter(Boolean);
+  const minT=st.map((s,i)=>s.min.short?`${i+1}팀 ${s.min.miss}`:"").filter(Boolean),shortT=st.map((s,i)=>s.form.short?`${i+1}팀 ${s.form.miss}`:"").filter(Boolean);
   const ap=activePairs(),where=new Map();o.teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
   const pairOk=ap.filter(p=>where.get(p.a)===where.get(p.b)).length;
   const sizes=st.map(s=>s.n),sizeOk=rng(sizes)<=1;
   const ck=(ok,text)=>`<li style="display:flex;gap:6px"><span style="color:var(--${ok===null?"muted":ok?"good":"bad"})">${ok===null?"–":ok?"✓":"✕"}</span><span>${text}</span></li>`;
   const must=[ck(sizeOk,`팀 인원 ${sizes.join(" · ")}명 (차이 1명 이내)`),
-    df>=k?ck(noDF===0,`팀마다 수비 가능한 선수 1명 이상 (수비 가능 ${df}명)`):ck(null,`수비 가능한 선수가 ${df}명뿐이라 ${k-df}팀은 수비수 없이 편성 (포지션을 확인해 주세요)`),
-    ck(!shortT.length,shortT.length?`대형 자리 부족: ${shortT.join(" / ")} (가능 포지션을 등록하면 채워져요)`:"팀마다 대형 채움 (사이드 2 · 중앙 1 · 수비 2 + 골키퍼 등 자유 1)"),
+    ck(!minT.length,minT.length?`최소 포지션 부족: ${minT.join(" / ")} (그 포지션 선수가 모자라요. 가능 포지션을 등록해 주세요)`:"팀마다 사이드 · 중앙 · 수비 최소 1명씩"),
+    (shortT.length?ck(null,`2-1-2 대형까지는 부족(권장 사항): ${shortT.join(" / ")} (가능 포지션을 등록하면 채워져요)`):ck(true,"팀마다 2-1-2 대형까지 채움 (사이드 2 · 중앙 1 · 수비 2 + 골키퍼 등 자유 1)")),
     ap.length?ck(pairOk===ap.length,`같은 팀 묶기 ${ap.length}짝 중 ${pairOk}짝 지킴`):ck(null,"같은 팀 묶기 없음")].join("");
   // ② 지표별 비교 표
   const rows=[
@@ -935,7 +944,7 @@ function reasonHtml(o,st){
       <div><div class="label" style="margin-bottom:4px">반드시 지키는 조건</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px">${must}</ul></div>
       <div><div class="label" style="margin-bottom:4px">팀별 비교 <span style="font-weight:400">(● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼)</span></div>
         <div style="overflow-x:auto"><table class="num" style="border-collapse:collapse;width:100%;font-size:.8rem">${th}${tr}</table></div></div>
-      <p class="small muted" style="margin:0">맞추는 순서: 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 주특기 선수 분산 → 대형 자리 채우기·포지션 인원 → 티어 분포 → 장신·왼발 분산${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
+      <p class="small muted" style="margin:0">맞추는 순서: 최소 포지션(사이드·중앙·수비 1명씩, 필수) → 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 주특기 선수 분산 → 대형 자리 채우기·포지션 인원 → 티어 분포 → 장신·왼발 분산${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
     </div></details>`;
 }
 /* ---------- 팀 능력치 레이더 ---------- */
