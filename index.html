@@ -223,8 +223,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792469860"></script>
-<script src="adapter.js?v=1792469860"></script>
+<script src="config.js?v=1792472739"></script>
+<script src="adapter.js?v=1792472739"></script>
 <script>
 (function(){
 "use strict";
@@ -621,7 +621,7 @@ function renderRecords(){
     <div class="tlist">${teamsH}</div>
     <div class="games">${games||`<span class="small muted">경기 결과를 입력해 주세요.</span>`}</div>
     ${mt.applied?"":`<div class="gform" data-form="${mt.id}"><select aria-label="팀 A">${opts}</select><input type="number" min="0" inputmode="numeric" aria-label="팀 A 득점" value="0"><span class="muted">:</span><input type="number" min="0" inputmode="numeric" aria-label="팀 B 득점" value="0"><select aria-label="팀 B">${opts.replace('value="1"','value="1" selected')}</select></div>`}
-    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn small" data-addgame="${mt.id}">경기 추가</button><button class="btn primary small" data-apply="${mt.id}" ${(mt.games||[]).length?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"정말 삭제":"삭제"}</button></div></article>`;
+    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn small" data-addgame="${mt.id}">경기 추가</button><button class="btn primary small" data-apply="${mt.id}" ${(mt.games||[]).length?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"정말 삭제":"삭제"}</button></div></article>`;
   }).join("");
 }
 let pendingDelete=null;
@@ -714,9 +714,13 @@ function openBulk(){
 
 /* ---------- actions ---------- */
 function saveAttend(){if(!db)return;clearTimeout(attendTimer);attendTimer=setTimeout(async()=>{savePublic();try{await db.doc("state/attendance").set({date:today(),matchDate:gameDate(),ids:[...attend],guests:guests.map(g=>{const o={...g};delete o.guest;return o;})});}catch(e){dbErr(e);}attendTimer=null;},700);}
+// 확정 당시 능력치 기록 (나중에 능력치가 바뀌어도 그날 팀 전력을 그대로 볼 수 있게)
+function snapOf(m){if(m.guest&&!m.rated)return {name:m.name,guest:true};
+  const o={name:m.name,score:m.score,adj:m.adj||0,injured:!!m.injured,pos:m.pos,pos2:m.pos2||[],tall:!!m.tall,foot:m.foot||""};
+  AREAS.forEach(([k])=>o[k]=m[k]);if(m.guest){o.guest=true;o.rated=true;}else o.id=m.id;return o;}
 async function confirmTeams(){
   const o=options[optIdx];
-  const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":""))})),games:[],applied:false,deltas:{}};
+  const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":"")),snap:t.map(snapOf)})),games:[],applied:false,deltas:{}};
   try{const ref=await db.collection("matches").add(body);
     savePublic(o.teams.map(t=>({names:t.map(m=>m.name),guest:t.map(m=>!!m.guest)})),ref&&ref.id||null);
     toast("기록에 저장했습니다. 경기 후 스코어를 입력하세요.");options=[];renderMake();switchTab("records");}catch(e){dbErr(e);}
@@ -757,7 +761,7 @@ document.addEventListener("click",e=>{
   if(b.id==="addPair")return openPairPicker();
   if(b.id==="openLogs")return openLogs();
   if(b.dataset.day!==undefined){const d=new Date();d.setDate(d.getDate()+(+b.dataset.day));matchDate=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");saveAttend();renderMake();return;}
-  if(b.dataset.radar){const i=+b.dataset.radar;radarHidden.has(i)?radarHidden.delete(i):radarHidden.add(i);renderMake();return;}
+  if(b.dataset.radar){const i=+b.dataset.radar;radarHidden.has(i)?radarHidden.delete(i):radarHidden.add(i);if($("#mStat"))openMatchStats($("#mStat").dataset.id);else renderMake();return;}
   if(b.dataset.rmpair){pairs=pairs.filter((_,i)=>i!==+b.dataset.rmpair);savePairs();options=[];renderMake();return;}
   if(b.dataset.rmguest){guests=guests.filter(g=>g.id!==b.dataset.rmguest);options=[];renderMake();saveAttend();return;}
   if(b.id==="allOff"){attend.clear();guests=[];options=[];renderMake();saveAttend();return;}
@@ -772,6 +776,7 @@ document.addEventListener("click",e=>{
   if(b.id==="pasteNames")return openPasteNames();
   if(b.id==="pngOpt"){const o=options[optIdx];return sharePng(gameDate(),o.teams.map(t=>t.map(m=>({name:m.name,guest:!!m.guest}))));}
   if(b.dataset.fb)return openFeedback(b.dataset.fb);
+  if(b.dataset.mstat){radarHidden=new Set();return openMatchStats(b.dataset.mstat);}
   if(b.dataset.png){const mt=matches.find(x=>x.id===b.dataset.png);
     return sharePng(mt.date,mt.teams.map(t=>t.names.map(n=>{const g=/\(용병\)$/.test(n);return {name:n.replace(/\(용병\)$/,""),guest:g,gk:false};})));}
   if(b.id==="addOne")return openEdit(null);
@@ -834,6 +839,48 @@ function openGuestEdit(id){
       options=[];closeSheet();renderMake();saveAttend();toast("용병 정보를 저장했어요");};
   };
   draw();
+}
+/* ---------- 경기 기록 → 팀 전력 보기 ---------- */
+function matchTeams(mt){
+  const snap=mt.teams.every(t=>Array.isArray(t.snap));
+  const teams=mt.teams.map(t=>snap?t.snap.map(x=>norm({...x,posSet:true,posSet2:true,tallSet:true})).map((x,i)=>t.snap[i].guest&&!t.snap[i].rated?{name:t.snap[i].name,guest:true}:x)
+    :[...t.ids.map(byId).filter(Boolean),...t.names.filter(n=>/\(용병\)$/.test(n)).map(n=>({name:n.replace(/\(용병\)$/,""),guest:true}))]);
+  return {teams,snap};
+}
+function openMatchStats(id){
+  const mt=matches.find(x=>x.id===id);if(!mt)return;
+  const {teams,snap}=matchTeams(mt),k=teams.length;
+  setCtx(teams.flat().filter(m=>!m.guest||m.rated));
+  const st=teams.map(stats),avgs=st.map(s=>s.avg),gap=Math.max(...avgs)-Math.min(...avgs),bs=balanceScore(teams);
+  const lv=bs>=85?["good","아주 고름"]:bs>=65?["warn","괜찮음"]:["bad","차이 있음"];
+  const rng=a=>Math.max(...a)-Math.min(...a);
+  // 실제 결과 (승·무·패, 득실)
+  const rec=teams.map(()=>({w:0,d:0,l:0,gf:0,ga:0}));
+  (mt.games||[]).forEach(g=>{const A=rec[g.a],B=rec[g.b];if(!A||!B)return;A.gf+=g.ga;A.ga+=g.gb;B.gf+=g.gb;B.ga+=g.ga;if(g.ga>g.gb){A.w++;B.l++;}else if(g.ga<g.gb){B.w++;A.l++;}else{A.d++;B.d++;}});
+  const games=(mt.games||[]).length;
+  const wins=[];for(let i=0;i<k;i++)for(let j=i+1;j<k;j++){const pw=winProb(st[i].avg,st[j].avg);wins.push(`<span class="pill num">${i+1}팀 ${Math.round(pw*100)} : ${100-Math.round(pw*100)} ${j+1}팀</span>`);}
+  const rows=[["팀 전력 평균",st.map(s=>s.avg),2,.1,.2],["에이스 (상위 2명 합)",st.map(s=>s.top2),1,.5,1],["약점 (하위 2명 합)",st.map(s=>s.bot2),1,.5,1],
+    ...AREAS.map(([kk,l])=>[l,st.map(s=>s[kk]),1,.25,.5]),...POS_KEYS.map(p=>[POS[p]+" 인원",st.map(s=>s.P[p]),0,1,2]),["장신",st.map(s=>s.tall),0,1,2],["왼발",st.map(s=>s.left),0,1,2]];
+  const mark=(v,g,w)=>`<span style="color:var(--${v<=g?"good":v<=w?"warn":"bad"})">●</span>`;
+  const table=`<div style="overflow-x:auto"><table class="num" style="border-collapse:collapse;width:100%;font-size:.8rem"><tr style="color:var(--muted)"><td></td>${st.map((_,i)=>`<td style="padding:4px 6px;text-align:right">${i+1}팀</td>`).join("")}<td style="padding:4px 0 4px 8px;text-align:right">차이</td></tr>`+
+    rows.map(([l,a,d,g,w])=>{const r=rng(a);return `<tr style="border-top:1px solid var(--line)"><td style="padding:5px 6px 5px 0;white-space:nowrap">${l}</td>${a.map(x=>`<td style="padding:5px 6px;text-align:right">${x.toFixed(d)}</td>`).join("")}<td style="padding:5px 0 5px 8px;text-align:right;white-space:nowrap">${mark(r,g,w)} ${r.toFixed(d)}</td></tr>`;}).join("")+`</table></div>`;
+  const cards=st.map((s,ti)=>{const b=BIBS[ti%6],r=rec[ti];return `<article class="team">
+    <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
+    ${games?`<div class="meta"><span class="pill num"><b>${r.w}승 ${r.d}무 ${r.l}패</b> · 득실 ${r.gf}:${r.ga}</span></div>`:""}
+    <div class="meta">${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
+    <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.min.short?`<span class="pill" style="color:var(--bad)">필수 포지션 부족: ${s.min.miss}</span>`:s.form.short?`<span class="pill" style="color:var(--warn)">2-1-2엔 ${s.form.miss} 부족</span>`:`<span class="pill" style="color:var(--good)">2-1-2 대형 ✓</span>`}</div>
+    <div class="meta" style="padding-top:4px">${AREAS.map(([kk])=>`<span class="pill num">${AREA_SHORT[kk]} ${s[kk].toFixed(1)}</span>`).join("")}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}</div></article>`;}).join("");
+  $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="mStat" data-id="${id}" aria-label="팀 전력">
+    <div class="row spread"><h2>${fmtDate(mt.date)} 팀 전력</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
+    <p class="small muted" style="margin:0">${snap?"조합을 확정한 당시의 능력치 기준이에요.":"예전 기록이라 지금 능력치로 다시 계산했어요. (이제부터 확정하는 경기는 당시 능력치가 저장돼요)"}</p>
+    <div class="balance" style="flex-wrap:wrap"><span class="dot" style="background:var(--${lv[0]})"></span><span>밸런스</span><b>${bs}점</b><span class="small muted">${lv[1]} · 전력 차 ${gap.toFixed(2)}</span></div>
+    <div class="meta" style="padding:0;gap:4px;display:flex;flex-wrap:wrap"><span class="small muted" style="width:100%">예상 승률 (팀 평균 전력 기준)</span>${wins.join("")}</div>
+    ${radarHtml(st)}
+    <div class="teams">${cards}</div>
+    <details class="panel"><summary style="cursor:pointer;font-weight:700">팀별 비교 표</summary><div style="margin-top:8px">${table}</div>
+      <p class="small muted" style="margin:6px 0 0">● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼</p></details>
+  </div></div>`;
+  $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
 }
 /* ---------- 경기 후 개인 피드백 (관리자 직접 보정) ---------- */
 const FB_STEPS=[-0.3,-0.2,-0.1,0,0.1,0.2,0.3];
