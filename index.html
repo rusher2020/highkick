@@ -96,6 +96,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .stripe{box-shadow:inset 4px 0 0 var(--tc)}
 .tb{display:inline-flex;flex:none;line-height:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
 .ft{display:inline-block;font:700 .62rem/1 var(--f-num);padding:2px 4px;border-radius:4px;background:var(--sunk);color:var(--muted);vertical-align:2px}
+.ft.tall{background:#E3EEF9;color:#1F5C99}.ft.lf{background:#FCEBDD;color:#A4511B}
 .tier.S{background:var(--tS)}.tier.A{background:var(--tA)}.tier.B{background:var(--tB)}.tier.C{background:var(--tC)}.tier.D{background:var(--tD)}
 
 .seg{display:inline-flex;background:var(--sunk);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
@@ -222,8 +223,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792414244"></script>
-<script src="adapter.js?v=1792414244"></script>
+<script src="config.js?v=1792456454"></script>
+<script src="adapter.js?v=1792456454"></script>
 <script>
 (function(){
 "use strict";
@@ -265,7 +266,7 @@ const INJ=0.5;
 const adjOf=m=>(m.adj||0)-(m.injured?INJ:0);
 const eff=m=>r2((m.score||3)+adjOf(m));
 const FOOT={L:"왼발",R:"오른발",B:"양발"};
-const badges=m=>(m.injured?" 🩹":"")+(m.foot==="L"?' <span class="ft">L</span>':m.foot==="B"?' <span class="ft">LR</span>':"");
+const badges=m=>(m.injured?" 🩹":"")+(m.tall?' <span class="ft tall">장신</span>':"")+(m.foot==="L"?' <span class="ft lf">왼발</span>':m.foot==="B"?' <span class="ft">LR</span>':"");
 function tierOf(s){const b=Math.max(1,Math.min(5,Math.floor(s)));const L={5:"S",4:"A",3:"B",2:"C",1:"D"}[b];return {k:L,label:L+(s%1>=.5&&b<5?"+":"")};}
 const TIER_NAME={S:"레전드",A:"에이스",B:"주전",C:"유망주",D:"새싹"};
 function tierHtml(s){const t=tierOf(s),plus=t.label.endsWith("+");
@@ -276,18 +277,18 @@ function tierHtml(s){const t=tierOf(s),plus=t.label.endsWith("+");
     `<text x="12" y="${plus?17.5:18}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-weight="700" font-size="${plus?9.5:11.5}" fill="#fff">${t.label}</text></svg></span>`;}
 const tierName=s=>TIER_NAME[tierOf(s).k];
 const byId=id=>members.find(m=>m.id===id);
-// ---- 능력치 5가지 (1~5점) · 포지션 공격/수비 · 포지션별 비중 종합 점수 ----
-const AREAS=[["atk","공격력"],["tec","기술"],["def","수비력"],["sta","활동량"],["phy","피지컬"]];
-const AREA_SHORT={atk:"공",tec:"기",def:"수",sta:"활",phy:"피"};
-const POS_WEIGHT={FW:{atk:.35,tec:.2,def:.15,sta:.15,phy:.15},DF:{atk:.1,tec:.15,def:.35,sta:.2,phy:.2}};
+// ---- 능력치 5가지 (1~5점): 슈터·드리블러·패스마스터·수비력·활동량 / 별도 표기: 장신·왼발 ----
+const AREAS=[["sht","슈터"],["dri","드리블러"],["pas","패스마스터"],["def","수비력"],["sta","활동량"]];
+const AREA_SHORT={sht:"슛",dri:"드",pas:"패",def:"수",sta:"활"};
+const POS_WEIGHT={FW:{sht:.3,dri:.2,pas:.2,def:.1,sta:.2},DF:{sht:.05,dri:.1,pas:.2,def:.4,sta:.25}};
 const half=x=>Math.round(x*2)/2;
-const suggestPos=v=>(v.atk??3)>=(v.def??3)?"FW":"DF";
+const suggestPos=v=>Math.max(v.sht??3,v.dri??3)>=(v.def??3)?"FW":"DF";
 function overallOf(v,pos){const w=POS_WEIGHT[pos]||POS_WEIGHT.FW;return r2(AREAS.reduce((a,[k])=>a+(v[k]??3)*w[k],0));}
-// 예전 데이터 이행: 미드 → 기술, 활동량·피지컬은 예전 평균으로 임시 (미입력 표시)
+// 예전 데이터 이행: 공격력 → 슈터, 기술(미드) → 드리블러·패스마스터 임시값(미입력 표시), 피지컬 → 장신 표기로 대체
 function norm(m){
-  const b=m.score||3,legacy=half(((m.atk??b)+(m.mid??b)+(m.def??b))/3);
-  const o={...m,atk:m.atk??b,def:m.def??b,tec:m.tec??(m.mid??b),sta:m.sta??legacy,phy:m.phy??legacy};
-  o.unset=[m.sta==null?"활동량":"",m.phy==null?"피지컬":""].filter(Boolean);
+  const b=m.score||3,tec=m.tec??m.mid??b,legacy=half(((m.atk??b)+tec+(m.def??b))/3);
+  const o={...m,sht:m.sht??m.atk??b,dri:m.dri??tec,pas:m.pas??tec,def:m.def??b,sta:m.sta??legacy,tall:!!m.tall,tallSet:m.tallSet??(m.tall!=null)};
+  o.unset=Array.isArray(m.unset)?m.unset:[m.dri==null?"드리블러":"",m.pas==null?"패스마스터":"",m.sta==null?"활동량":""].filter(Boolean);
   o.pos=m.posSet&&(m.pos==="FW"||m.pos==="DF")?m.pos:suggestPos(o);
   o.score=overallOf(o,o.pos);
   return o;
@@ -310,7 +311,9 @@ function stats(all){
   const e=team.map(eff).sort((x,y)=>y-x),sum=e.reduce((a,x)=>a+x,0);
   const av=k=>n?team.reduce((a,m)=>a+m[k]+adjOf(m),0)/n:0;
   return {n:all.length,guest:all.length-n,sum:r2(sum),avg:n?sum/n:0,
-    atk:av("atk"),tec:av("tec"),def:av("def"),sta:av("sta"),phy:av("phy"),
+    sht:av("sht"),dri:av("dri"),pas:av("pas"),def:av("def"),sta:av("sta"),
+    tall:team.filter(m=>m.tall).length,
+    spec:Object.fromEntries(AREAS.map(([k])=>[k,team.filter(m=>m[k]>=4).length])),
     top2:(e[0]||0)+(e[1]||0),bot2:n>=2?e[n-1]+e[n-2]:(e[0]||0),
     left:team.filter(m=>m.foot==="L").length,inj:team.filter(m=>m.injured).length,
     T:team.reduce((o,m)=>{o[tierOf(m.score).k]++;return o;},{S:0,A:0,B:0,C:0,D:0}),
@@ -340,16 +343,16 @@ function lastOverlap(teams){ // 직전 경기와 그대로 겹치는 쌍 수
  * 팀 조합 엔진
  * ① 필수 조건: 팀 인원(정해진 크기), 같은 팀 묶기 짝, 팀마다 수비수 1명 이상 → 어기면 아주 큰 벌점
  * ② 맞출 지표(중요한 순): 팀 전력 평균 > 에이스(상위 2명) > 약점(하위 2명) > 능력치 5가지 평균
- *    > 공격·수비 인원 > 티어 분포 > 왼발 > 지난 조합 겹침
+ *    > 주특기 선수(항목 4점 이상) 분산 > 공격·수비 인원 > 티어 분포 > 장신·왼발 분산 > 지난 조합 겹침
  *    각 지표는 오늘 참석자들의 실력 편차로 나눠 같은 기준(정규화)으로 비교하고,
  *    최대-최소가 아니라 "모든 팀이 전체 평균에서 벗어난 정도(제곱 평균)"로 계산
  * ③ 탐색: 여러 시작 조합 → 1:1 교환(가장 좋은 것) → 막히면 2:2 교환 → 반복
  */
-let CTX={sd:.6,sk:{atk:.6,tec:.6,def:.6,sta:.6,phy:.6}};
+let CTX={sd:.6,sk:{sht:.6,dri:.6,pas:.6,def:.6,sta:.6}};
 const sdOf=a=>{if(!a.length)return .6;const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.max(.35,Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length));};
 function setCtx(players){CTX={sd:sdOf(players.map(eff)),sk:Object.fromEntries(AREAS.map(([k])=>[k,sdOf(players.map(p=>p[k]))]))};}
 function dev2(arr,scale){const m=arr.reduce((a,b)=>a+b,0)/arr.length;let s=0;for(const x of arr){const d=(x-m)/scale;s+=d*d;}return s/arr.length;}
-const BW={power:12,top:5,bot:6,stat:{atk:1.2,tec:1.2,def:1.2,sta:1.8,phy:1.8},pos:1.5,tier:.8,left:.3,overlap:.08};
+const BW={power:12,top:5,bot:6,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1.5,tier:.8,tall:.6,left:.5,overlap:.08};
 function coreDev(st){const k=st.length,ns=Math.max(1,st.reduce((a,s)=>a+(s.n-s.guest),0)/k),sd=CTX.sd;
   return {power:dev2(st.map(s=>s.avg),sd/Math.sqrt(ns)),top:dev2(st.map(s=>s.top2),sd),bot:dev2(st.map(s=>s.bot2),sd),ns};}
 function cost(teams){
@@ -358,7 +361,8 @@ function cost(teams){
   for(const [a] of AREAS)c+=BW.stat[a]*dev2(st.map(s=>s[a]),CTX.sk[a]/Math.sqrt(cd.ns));
   c+=BW.pos*(dev2(st.map(s=>s.P.FW),1)+dev2(st.map(s=>s.P.DF),1));
   for(const t of ["S","A","B","C","D"])c+=BW.tier*(t==="S"||t==="A"?1.5:1)*dev2(st.map(s=>s.T[t]),1);
-  c+=BW.left*dev2(st.map(s=>s.left),1);
+  for(const [a] of AREAS)c+=BW.spec*dev2(st.map(s=>s.spec[a]),1);
+  c+=BW.tall*dev2(st.map(s=>s.tall),1)+BW.left*dev2(st.map(s=>s.left),1);
   const df=st.reduce((a,s)=>a+s.P.DF,0);if(df>=k)c+=500*st.filter(s=>s.P.DF===0).length;
   return c+pairCost(teams)+overlap(teams)*BW.overlap;
 }
@@ -506,7 +510,7 @@ function renderMake(){
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
       <div class="meta">${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
       <div class="meta" style="padding-top:4px"><span class="pill">공격 ${s.P.FW} · 수비 ${s.P.DF}</span></div>
-      <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}</div>
+      <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}</div>
       <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
     <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
   }
@@ -531,7 +535,7 @@ function renderMembers(){
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
   let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
   if(!members.length){
-    h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 공격 기술 수비 활동량 피지컬</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
+    h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 슈터 드리블러 패스마스터 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
     <div class="panel small"><div class="label">점수 기준 (1~5점, 0.5 단위)</div><p style="margin:.4rem 0 0">5 = S · 4 = A · 3 = B · 2 = C · 1 = D. 4.5점은 A+, 3.5점은 B+로 표시됩니다. 경기 결과에 따라 승리 +0.1, 패배 −0.1이 보정되고, 3골 차 이상이면 1.5배가 됩니다. 보정은 ±1.5까지만 쌓입니다.</p></div>`;
     v.innerHTML=h;return;
   }
@@ -545,10 +549,11 @@ function renderMembers(){
   <tr><td style="padding:5px 0">${tierHtml(2)} 2</td><td>기본기나 체력이 부족, 포지션 이해가 낮음</td></tr>
   <tr><td style="padding:5px 0">${tierHtml(1)} 1</td><td>입문자. 볼 다루기가 어려움</td></tr>
   </table>
-  <p style="margin:.6rem 0 0"><b>공격력</b> 슈팅·골 결정력·침투 · <b>기술</b> 드리블·볼 키핑·퍼스트 터치·패스 · <b>수비력</b> 대인 방어·위치 선정·태클·커버 · <b>활동량</b> 많이 뛰는지·압박·체력 · <b>피지컬</b> 몸싸움·스피드·버티는 힘. 다섯 항목을 위 기준으로 각각 매기면 포지션별 비중으로 종합 점수가 계산되고, 티어는 종합 점수로 정해집니다.</p>
-  <div style="overflow-x:auto;margin-top:8px"><table class="num" style="border-collapse:collapse;font-size:.8rem;min-width:100%"><tr style="color:var(--muted)"><td style="padding:3px 6px 3px 0">비중</td><td>공격력</td><td>기술</td><td>수비력</td><td>활동량</td><td>피지컬</td></tr>
-    <tr><td style="padding:3px 6px 3px 0"><b>공격수</b></td><td><b>35%</b></td><td>20%</td><td>15%</td><td>15%</td><td>15%</td></tr>
-    <tr><td style="padding:3px 6px 3px 0"><b>수비수</b></td><td>10%</td><td>15%</td><td><b>35%</b></td><td>20%</td><td>20%</td></tr></table></div>
+  <p style="margin:.6rem 0 0"><b>슈터</b> 슈팅·골 결정력·침투 · <b>드리블러</b> 드리블 돌파·볼 키핑·탈압박 · <b>패스마스터</b> 패스 정확도·시야·연계 · <b>수비력</b> 대인 방어·위치 선정·태클·커버 · <b>활동량</b> 많이 뛰는지·압박·체력. 다섯 항목을 위 기준으로 각각 매기면 포지션별 비중으로 종합 점수가 계산되고, 티어는 종합 점수로 정해집니다.</p>
+  <p style="margin:.4rem 0 0"><span class="ft tall">장신</span> 키·제공권이 좋은 선수, <span class="ft lf">왼발</span> 왼발잡이는 점수와 별개로 표기하고, 팀을 짤 때 한 팀에 몰리지 않게 나눕니다.</p>
+  <div style="overflow-x:auto;margin-top:8px"><table class="num" style="border-collapse:collapse;font-size:.8rem;min-width:100%"><tr style="color:var(--muted)"><td style="padding:3px 6px 3px 0">비중</td><td>슈터</td><td>드리블러</td><td>패스마스터</td><td>수비력</td><td>활동량</td></tr>
+    <tr><td style="padding:3px 6px 3px 0"><b>공격수</b></td><td><b>30%</b></td><td>20%</td><td>20%</td><td>10%</td><td>20%</td></tr>
+    <tr><td style="padding:3px 6px 3px 0"><b>수비수</b></td><td>5%</td><td>10%</td><td>20%</td><td><b>40%</b></td><td>25%</td></tr></table></div>
   <p style="margin:.6rem 0 0" class="muted">두 단계 사이면 0.5점 (예: 3과 4 사이 → 3.5). 운영진 3명이 각자 매긴 뒤 평균을 0.5 단위로 반올림하세요. 3점(B)이 가장 많고 S는 1~2명 정도가 적당합니다.</p>
 </details>
   <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 기본 + 보정</span>`}</div>
@@ -586,18 +591,19 @@ function renderAll(){renderMake();renderMembers();renderRecords();}
 function closeSheet(){$("#sheetRoot").innerHTML="";}
 function openEdit(m){
   const isNew=!m;m=norm(m||{name:"",score:3,adj:0,active:true});
-  const v={atk:m.atk,tec:m.tec,def:m.def,sta:m.sta,phy:m.phy};let confirmDel=false;let by=me();
+  const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;
   let pos=m.pos,posTouched=!!m.posSet;
-  const orig={name:m.name,atk:m.atk,tec:m.tec,def:m.def,sta:m.sta,phy:m.phy,pos:m.pos,active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
+  const orig={name:m.name,...v,tall,pos:m.pos,active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
   const avg=()=>overallOf(v,pos);
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label>
     ${AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(s=>`<button type="button" data-a="${a}" data-s="${s}" aria-pressed="${s===v[a]}">${s}</button>`).join("")}</div></div>`).join("")}
-    <div class="field"><span class="label">포지션 ${posTouched?"":`<span style="font-weight:400">(공격력·수비력으로 자동 추천 중)</span>`}</span><div class="seg"><button type="button" data-pos="FW" aria-pressed="${pos==="FW"}">공격</button><button type="button" data-pos="DF" aria-pressed="${pos==="DF"}">수비</button></div></div>
+    <div class="field"><span class="label">포지션 ${posTouched?"":`<span style="font-weight:400">(슈터·드리블러·수비력으로 자동 추천 중)</span>`}</span><div class="seg"><button type="button" data-pos="FW" aria-pressed="${pos==="FW"}">공격</button><button type="button" data-pos="DF" aria-pressed="${pos==="DF"}">수비</button></div></div>
     <div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${pos==="DF"?"수비수":"공격수"} 비중으로 계산</span></div>
     ${m.unset&&m.unset.length&&!isNew?`<div class="small" style="color:var(--warn)">${m.unset.join("·")}은(는) 아직 입력 전이라 임시 점수예요. 확인 후 저장해 주세요.</div>`:""}
     <div class="field"><span class="label">주발</span><div class="seg">${[["L","왼발"],["R","오른발"],["B","양발"]].map(([k,l])=>`<button type="button" data-foot="${k}" aria-pressed="${foot===k}">${l}</button>`).join("")}</div></div>
+    <div class="field"><span class="label">피지컬 ${m.phy!=null&&!m.tallSet&&!isNew?`<span style="font-weight:400">(예전 피지컬 ${m.phy}점)</span>`:""}</span><div class="seg"><button type="button" data-tall="1" aria-pressed="${tall}">장신</button><button type="button" data-tall="0" aria-pressed="${!tall}">해당 없음</button></div></div>
     <label class="toggle"><input type="checkbox" id="fInj" ${m.injured?"checked":""}> 🩹 부상 중 <span class="small muted">(팀 짜기 때 −0.5점으로 계산)</span></label>
     <label class="toggle"><input type="checkbox" id="fAct" ${m.active!==false?"checked":""}> 활동 중 (끄면 출석 목록에서 숨김)</label>
     ${isNew?"":`<div class="small muted">경기 보정치 <span class="num">${(m.adj||0)>0?"+":""}${(m.adj||0).toFixed(1)}</span> · 현재 점수 <span class="num">${eff(m).toFixed(1)}</span></div>`}
@@ -613,17 +619,18 @@ function openEdit(m){
   const keepForm=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;};
   document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{keepForm();pos=b.dataset.pos;posTouched=true;draw();});
   document.querySelectorAll("[data-foot]").forEach(b=>b.onclick=()=>{keepForm();foot=foot===b.dataset.foot?"":b.dataset.foot;draw();});
+  document.querySelectorAll("[data-tall]").forEach(b=>b.onclick=()=>{keepForm();tall=b.dataset.tall==="1";draw();});
   document.querySelectorAll("[data-by]").forEach(b=>b.onclick=()=>{keepForm();by=b.dataset.by;setMe(by);draw();});
   const cb=$("#chgBy");if(cb)cb.onclick=()=>{keepForm();by="";draw();};
   const del=$("#del");if(del)del.onclick=async()=>{if(!confirmDel){m.name=$("#fName").value;confirmDel=true;draw();return;}
     if(by)setMe(by);
     try{await db.doc("members/"+m.id).delete();addLog({kind:"delete",memberId:m.id,name:orig.name});attend.delete(m.id);saveAttend();closeSheet();toast("삭제했습니다");}catch(e){dbErr(e);}};
   $("#editForm").onsubmit=async e=>{e.preventDefault();const name=$("#fName").value.trim();if(!name){toast("이름을 입력해 주세요");return;}
-    const body={name,atk:v.atk,tec:v.tec,def:v.def,sta:v.sta,phy:v.phy,score:avg(),pos,posSet:posTouched,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
+    const body={name,...v,tall,score:avg(),pos,posSet:posTouched,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
     if(!by){toast("누가 수정하는지 운영진 이름을 골라 주세요");return;}setMe(by);
     const ch={};
     if(!isNew){for(const [k] of AREAS)if(orig[k]!==body[k])ch[k]=[orig[k],body[k]];
-      if(orig.pos!==body.pos)ch.pos=[orig.pos,body.pos];if(orig.injured!==body.injured)ch.injured=[orig.injured,body.injured];if(orig.foot!==body.foot)ch.foot=[orig.foot,body.foot];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
+      if(orig.pos!==body.pos)ch.pos=[orig.pos,body.pos];if(orig.injured!==body.injured)ch.injured=[orig.injured,body.injured];if(orig.foot!==body.foot)ch.foot=[orig.foot,body.foot];if(orig.tall!==body.tall)ch.tall=[orig.tall,body.tall];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
     try{if(isNew)await db.collection("members").add(body);else await db.doc("members/"+m.id).update(body);if(!isNew)lastEdited=m.id;
       if(isNew)addLog({kind:"add",name:body.name,changes:Object.fromEntries(AREAS.map(([k])=>[k,[null,body[k]]]))});
       else if(Object.keys(ch).length)addLog({kind:"edit",memberId:m.id,name:body.name,changes:ch,score:[orig.score,body.score]});closeSheet();toast(isNew?"추가했습니다":"저장했습니다");}catch(err){dbErr(err);}};
@@ -639,6 +646,8 @@ function parseLine(line){
     if(["DF","수비","수"].includes(u)){o.pos="DF";continue;}
     if(["ALL","올","올라운드"].includes(u)){o.pos="ALL";continue;}
     if(["GK","키퍼","골키퍼"].includes(u))continue;
+    if(["장신","키"].includes(u)){o.tall=true;continue;}
+    if(["왼발","L"].includes(u)){o.foot="L";continue;}
     nm.push(t);}
   o.name=nm.join(" ");if(!o.name)return null;
   if(nums.length>=2){AREAS.forEach(([k],i)=>o[k]=nums[i]??3);}else{AREAS.forEach(([k])=>o[k]=nums[0]||3);}
@@ -648,7 +657,7 @@ function parseLine(line){
 function openBulk(){
   $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="bulkForm">
     <div class="row spread"><h2>여러 명 등록</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
-    <p class="small muted" style="margin:0">한 줄에 한 명씩 <b>이름 공격력 기술 수비력 활동량 피지컬</b> 순서로 적어 주세요 (1~5, 0.5 단위). 끝에 "공격"이나 "수비"를 붙이면 포지션이 정해져요. 점수를 하나만 쓰면 다섯 항목에 똑같이, 안 쓰면 3점으로 등록됩니다.</p>
+    <p class="small muted" style="margin:0">한 줄에 한 명씩 <b>이름 슈터 드리블러 패스마스터 수비력 활동량</b> 순서로 적어 주세요 (1~5, 0.5 단위). 끝에 "공격"이나 "수비"를 붙이면 포지션이 정해져요. 점수를 하나만 쓰면 다섯 항목에 똑같이, 안 쓰면 3점으로 등록됩니다.</p>
     <label class="field"><span class="label">명단</span><textarea id="bulkText" placeholder="김민수 4 3.5 2.5 3 3 공격&#10;이준호 2.5 3 4 3.5 4 수비&#10;박지훈 3"></textarea></label>
     <div id="bulkPrev" class="small muted">0명 인식됨</div>
     <button class="btn primary big" type="submit">등록</button></form></div>`;
@@ -754,13 +763,14 @@ document.addEventListener("submit",e=>{
 });
 function openGuestEdit(id){
   const g=guests.find(x=>x.id===id);if(!g)return;
-  const v=Object.fromEntries(AREAS.map(([k])=>[k,g[k]||3]));let rated=!!g.rated,name=g.name;
+  const v=Object.fromEntries(AREAS.map(([k])=>[k,g[k]||3]));let rated=!!g.rated,name=g.name,tall=!!g.tall;
   const avg=()=>overallOf(v,suggestPos(v));
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="gEdit">
     <div class="row spread"><h2>용병 정보</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="gName2" value="${esc(name)}" maxlength="20"></label>
     <div class="field"><span class="label">능력치</span><div class="seg"><button type="button" data-rt="0" aria-pressed="${!rated}">모름 (무작위 배치)</button><button type="button" data-rt="1" aria-pressed="${rated}">입력 (밸런스에 반영)</button></div></div>
     ${rated?AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(x=>`<button type="button" data-ga="${a}" data-s="${x}" aria-pressed="${x===v[a]}">${x}</button>`).join("")}</div></div>`).join("")+
+      `<div class="field"><span class="label">피지컬</span><div class="seg"><button type="button" data-gt="1" aria-pressed="${tall}">장신</button><button type="button" data-gt="0" aria-pressed="${!tall}">해당 없음</button></div></div>`+
       `<div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(1)}</b></span><span class="small muted" style="margin-left:auto">${suggestPos(v)==="DF"?"수비":"공격"} 포지션으로 계산</span></div>`:""}
     <p class="small muted" style="margin:0">용병 정보는 오늘만 쓰이고 회원 명단과 경기 보정에는 들어가지 않아요.</p>
     <button class="btn primary big" type="submit">저장</button></form></div>`;
@@ -768,9 +778,11 @@ function openGuestEdit(id){
     const keep=()=>{name=$("#gName2").value;};
     document.querySelectorAll("[data-rt]").forEach(b=>b.onclick=()=>{keep();rated=b.dataset.rt==="1";draw();});
     document.querySelectorAll("[data-ga]").forEach(b=>b.onclick=()=>{keep();v[b.dataset.ga]=+b.dataset.s;draw();});
+    document.querySelectorAll("[data-gt]").forEach(b=>b.onclick=()=>{keep();tall=b.dataset.gt==="1";draw();});
     $("#gEdit").onsubmit=e=>{e.preventDefault();keep();
       Object.assign(g,{name:(name.trim()||g.name).slice(0,20),rated});delete g.gk;
-      if(rated)Object.assign(g,v);else{for(const [k] of AREAS)delete g[k];delete g.mid;}
+      if(rated)Object.assign(g,v,{tall});else{for(const [k] of AREAS)delete g[k];delete g.mid;delete g.tall;}
+      for(const k of ["atk","tec","phy"])delete g[k];
       options=[];closeSheet();renderMake();saveAttend();toast("용병 정보를 저장했어요");};
   };
   draw();
@@ -856,8 +868,11 @@ function reasonHtml(o,st){
     ["에이스 (상위 2명 합)",st.map(s=>s.top2),1,.5,1],
     ["약점 (하위 2명 합)",st.map(s=>s.bot2),1,.5,1],
     ...AREAS.map(([kk,l])=>[l+" 평균",st.map(s=>s[kk]),1,.25,.5]),
+    ["주특기 (4점↑) 합",st.map(s=>AREAS.reduce((a,[kk])=>a+s.spec[kk],0)),0,2,4],
     ["공격수 수",st.map(s=>s.P.FW),0,1,2],
-    ["수비수 수",st.map(s=>s.P.DF),0,1,2]];
+    ["수비수 수",st.map(s=>s.P.DF),0,1,2],
+    ["장신",st.map(s=>s.tall),0,1,2],
+    ["왼발",st.map(s=>s.left),0,1,2]];
   const th=`<tr style="color:var(--muted)"><td></td>${st.map((_,i)=>`<td style="padding:4px 6px;text-align:right">${i+1}팀</td>`).join("")}<td style="padding:4px 0 4px 8px;text-align:right">차이</td></tr>`;
   const tr=rows.map(([l,a,d,g,w])=>{const r=rng(a);return `<tr style="border-top:1px solid var(--line)"><td style="padding:5px 6px 5px 0;white-space:nowrap">${l}</td>${a.map(x=>`<td style="padding:5px 6px;text-align:right">${x.toFixed(d)}</td>`).join("")}<td style="padding:5px 0 5px 8px;text-align:right;white-space:nowrap">${mark(r,g,w)} ${r.toFixed(d)}</td></tr>`;}).join("");
   // ③ 얼마나 좋아졌나
@@ -870,14 +885,14 @@ function reasonHtml(o,st){
       <div><div class="label" style="margin-bottom:4px">반드시 지키는 조건</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px">${must}</ul></div>
       <div><div class="label" style="margin-bottom:4px">팀별 비교 <span style="font-weight:400">(● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼)</span></div>
         <div style="overflow-x:auto"><table class="num" style="border-collapse:collapse;width:100%;font-size:.8rem">${th}${tr}</table></div></div>
-      <p class="small muted" style="margin:0">맞추는 순서: 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 공격·수비 인원 → 티어 분포·왼발${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
+      <p class="small muted" style="margin:0">맞추는 순서: 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 주특기 선수 분산 → 공격·수비 인원 → 티어 분포 → 장신·왼발 분산${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
     </div></details>`;
 }
 /* ---------- 팀 능력치 레이더 ---------- */
 const BIB_COL=["var(--bib1)","var(--bib2)","var(--bib3)","var(--bib4)","var(--bib5)","var(--bib6)"];
 let radarHidden=new Set();
 function radarHtml(st){
-  // 축: 공격력·기술·수비력·활동량·피지컬·종합 (육각형)
+  // 축: 슈터·드리블러·패스마스터·수비력·활동량·종합 (육각형)
   const axes=[...AREAS.map(([k,l])=>[l,s=>s[k]]),["종합",s=>s.avg]];
   const vals=st.map(s=>axes.map(([,f])=>f(s)));
   const sk=vals.flat();
@@ -896,17 +911,18 @@ function radarHtml(st){
       v.map((x,i)=>{const [px,py]=pt(i,frac(i,x));return `<circle cx="${px}" cy="${py}" r="3.2" fill="${BIB_COL[ti%6]}"/>`;}).join("");}).join("");
   const lg=st.map((s,ti)=>`<button type="button" data-radar="${ti}" aria-pressed="${!radarHidden.has(ti)}"><i style="background:${BIB_COL[ti%6]}"></i>${BIBS[ti%6][0]} <span class="num muted">${s.avg.toFixed(2)}</span></button>`).join("");
   return `<div class="panel radar"><div class="row spread"><b>팀 능력치 비교</b><span class="small muted">눈금 ${lo.toFixed(1)}~${hi.toFixed(1)}점 확대</span></div>
-    <svg viewBox="-30 -24 380 368" role="img" aria-label="팀별 공격력·기술·수비력·활동량·피지컬·종합 레이더 차트">${rings}${spokes}${ticks}${polys}${labels}</svg>
+    <svg viewBox="-30 -24 380 368" role="img" aria-label="팀별 슈터·드리블러·패스마스터·수비력·활동량·종합 레이더 차트">${rings}${spokes}${ticks}${polys}${labels}</svg>
     <div class="lg">${lg}</div><span class="small muted" style="text-align:center">팀 이름을 누르면 숨기거나 다시 보여요.</span></div>`;
 }
 /* ---------- 운영진 변경 기록 ---------- */
-const AREA_KO={atk:"공격력",tec:"기술",def:"수비력",sta:"활동량",phy:"피지컬",mid:"미드"};
+const AREA_KO={sht:"슈터",dri:"드리블러",pas:"패스마스터",atk:"공격력",tec:"기술",def:"수비력",sta:"활동량",phy:"피지컬",mid:"미드"};
 function fmtWhen(t){const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;}
 function logLine(l){
   const who=`<b>${esc(l.by||"이름 없음")}</b>`,nm=`<b>${esc(l.name||"")}</b>`;
   if(l.kind==="edit"){
     const c=l.changes||{},parts=[];
-    for(const k of ["atk","tec","def","sta","phy","mid"])if(c[k])parts.push(`${AREA_KO[k]} ${c[k][0]}→<b class="${c[k][1]>c[k][0]?"up":"down"}">${c[k][1]}</b>`);
+    if(c.tall)parts.push(`장신 ${c.tall[0]?"예":"아니오"}→${c.tall[1]?"예":"아니오"}`);
+    for(const k of ["sht","dri","pas","atk","tec","def","sta","phy","mid"])if(c[k])parts.push(`${AREA_KO[k]} ${c[k][0]}→<b class="${c[k][1]>c[k][0]?"up":"down"}">${c[k][1]}</b>`);
     if(c.pos)parts.push(`포지션 ${POS[c.pos[0]]||"-"}→${POS[c.pos[1]]||"-"}`);
     if(c.gk)parts.push(c.gk[1]?"골키퍼 잘함 체크":"골키퍼 잘함 해제");
     if(c.injured)parts.push(c.injured[1]?"🩹 부상 등록":"부상 해제");
@@ -1002,7 +1018,7 @@ function openImportReview(people){
         const ids=new Set(rows.filter(r=>r.mid).map(r=>r.mid));
         for(const r of rows.filter(r=>!r.mid&&r.act==="new")){
           const ref=db.collection("members").doc();
-          await ref.set({name:r.name.slice(0,20),atk:3,tec:3,def:3,sta:3,phy:3,score:3,pos:"FW",adj:0,active:true});ids.add(ref.id);
+          await ref.set({name:r.name.slice(0,20),sht:3,dri:3,pas:3,def:3,sta:3,score:3,pos:"FW",adj:0,active:true});ids.add(ref.id);
         }
         rows.filter(r=>!r.mid&&r.act==="guest").forEach(r=>{if(!guests.some(g=>g.name===r.name))guests.push({id:"g"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:r.name.slice(0,20)});});
         // 비활성(휴면) 회원이 투표했으면 다시 활동으로
