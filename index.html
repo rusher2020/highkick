@@ -258,8 +258,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792555281"></script>
-<script src="adapter.js?v=1792555281"></script>
+<script src="config.js?v=1792555548"></script>
+<script src="adapter.js?v=1792555548"></script>
 <script>
 (function(){
 "use strict";
@@ -825,15 +825,15 @@ function renderAll(){renderMake();renderPlay();renderMembers();renderRecords();}
 function closeSheet(){$("#sheetRoot").innerHTML="";}
 function openEdit(m){
   const isNew=!m;m=norm(m||{name:"",score:3,adj:0,active:true});
-  const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;
+  const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;let rEditing=isNew;
   let pos=m.pos,posTouched=!!m.posSet2,pos2=[...(m.pos2||[])];
   const orig={name:m.name,...v,tall,pos:m.pos,pos2:pos2.join(","),active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
   const avg=()=>overallOf(v,pos);
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label>
-    <div class="field"><span class="label">능력치 <span style="font-weight:400">(꼭짓점을 끌거나 축을 눌러서 조절 · 0.5 단위)</span></span>${radarEdit(v,orig,pos)}</div>
-    <details class="panel" style="padding:10px 12px"><summary style="cursor:pointer;font-weight:700;font-size:.88rem">숫자 버튼으로 고르기</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+    <div class="field"><div class="row spread"><span class="label">능력치</span><button type="button" class="btn small ${rEditing?"primary":""}" id="rToggle">${rEditing?"수정 완료":"능력치 수정"}</button></div>${radarEdit(v,orig,pos,rEditing)}</div>
+    <details class="panel" style="padding:10px 12px" ${rEditing?"":"hidden"}><summary style="cursor:pointer;font-weight:700;font-size:.88rem">숫자 버튼으로 고르기</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
     ${AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(s=>`<button type="button" data-a="${a}" data-s="${s}" aria-pressed="${s===v[a]}">${s}</button>`).join("")}</div></div>`).join("")}
     </div></details>
     <div class="field"><span class="label">주 포지션 ${posTouched?"":`<span style="font-weight:400;color:var(--warn)">(능력치로 자동 추천 중 · 눌러서 확정)</span>`}</span><div class="seg">${POS_KEYS.map(p=>`<button type="button" data-pos="${p}" aria-pressed="${pos===p}">${POS[p]}</button>`).join("")}</div>
@@ -857,13 +857,14 @@ function openEdit(m){
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;v[b.dataset.a]=+b.dataset.s;if(!posTouched)pos=suggestPos(v);draw();});
   const keepForm=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;};
   // 레이더 직접 조절: 누른 위치에서 가장 가까운 축을 잡고, 끄는 동안 그 축 값만 바뀜
-  const svg=$("#rEdit");if(svg){let ax=-1;
+  const rt=$("#rToggle");if(rt)rt.onclick=()=>{keepForm();rEditing=!rEditing;draw();};
+  const svg=$("#rEdit");if(svg&&rEditing){let ax=-1;
     const loc=e=>{const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return [vb.x+(e.clientX-r.left)/r.width*vb.width,vb.y+(e.clientY-r.top)/r.height*vb.height];};
     const setFrom=(x,y,pick)=>{const dx=x-RE.C,dy=y-RE.C;
       if(pick){const a=Math.atan2(dy,dx);let bd=9;for(let i=0;i<5;i++){let d=Math.abs(a-RE.ang(i));d=Math.min(d,2*Math.PI-d);if(d<bd){bd=d;ax=i;}}}
       const proj=(dx*Math.cos(RE.ang(ax))+dy*Math.sin(RE.ang(ax)))/RE.R*5,val=Math.max(1,Math.min(5,Math.round(proj*2)/2)),k=AREAS[ax][0];
-      if(v[k]!==val){v[k]=val;if(!posTouched)pos=suggestPos(v);const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,ax);const t=$("#rSum");if(t)t.innerHTML=rSum(v,pos);}};
-    svg.addEventListener("pointerdown",e=>{e.preventDefault();try{svg.setPointerCapture(e.pointerId);}catch(_){}keepForm();const [x,y]=loc(e);setFrom(x,y,true);const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,ax);});
+      if(v[k]!==val){v[k]=val;if(!posTouched)pos=suggestPos(v);const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,ax,true);const t=$("#rSum");if(t)t.innerHTML=rSum(v,pos);}};
+    svg.addEventListener("pointerdown",e=>{e.preventDefault();try{svg.setPointerCapture(e.pointerId);}catch(_){}keepForm();const [x,y]=loc(e);setFrom(x,y,true);const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,ax,true);});
     svg.addEventListener("pointermove",e=>{if(ax<0)return;e.preventDefault();const [x,y]=loc(e);setFrom(x,y,false);});
     const end=()=>{if(ax<0)return;ax=-1;draw();};svg.addEventListener("pointerup",end);svg.addEventListener("pointercancel",end);}
   document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{keepForm();pos=b.dataset.pos;posTouched=true;pos2=pos2.filter(x=>x!==pos);draw();});
@@ -1235,25 +1236,30 @@ function openMatchStats(id){
   $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
 }
 /* ---------- 능력치 오각형 (회원 수정에서 직접 끌어서 조절) ---------- */
-const RE={C:130,R:100,ang:i=>-Math.PI/2+i*2*Math.PI/5};
+const RE={C:130,R:96,ang:i=>-Math.PI/2+i*2*Math.PI/5};
 RE.pt=(i,val)=>[RE.C+Math.cos(RE.ang(i))*RE.R*val/5,RE.C+Math.sin(RE.ang(i))*RE.R*val/5];
 const rPoly=v=>AREAS.map(([k],i)=>RE.pt(i,v[k]).map(n=>n.toFixed(1)).join(",")).join(" ");
-function rDyn(v,act){
-  return `<polygon points="${rPoly(v)}" fill="var(--accent)" fill-opacity=".2" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>`+
-    AREAS.map(([k,l],i)=>{const [x,y]=RE.pt(i,v[k]),low=i===2||i===3,[lx,ly0]=RE.pt(i,low?6.1:6.35),ly=low?ly0+12:ly0,on=act===i;
-      return `<circle cx="${x}" cy="${y}" r="${on?13:10}" fill="var(--surface)" stroke="var(--accent)" stroke-width="${on?4:3}"/>`+
-        `<text x="${lx}" y="${ly-8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ink)">${l}</text>`+
-        `<text x="${lx}" y="${ly+9}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--accent)" font-family="var(--f-num)">${v[k].toFixed(1)}</text>`;}).join("");
+const lvPoly=lv=>AREAS.map((_,i)=>RE.pt(i,lv).map(n=>n.toFixed(1)).join(",")).join(" ");
+function rDyn(v,act,editing){
+  const pts=AREAS.map(([k],i)=>RE.pt(i,v[k]));
+  return `<polygon points="${rPoly(v)}" fill="url(#rFill)" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`+
+    pts.map(([x,y],i)=>editing?`<circle cx="${x}" cy="${y}" r="${act===i?12:9}" fill="var(--surface)" stroke="var(--accent)" stroke-width="${act===i?3.5:2.5}" filter="url(#rSh)"/>`:`<circle cx="${x}" cy="${y}" r="3.6" fill="var(--accent)"/>`).join("")+
+    AREAS.map(([k,l],i)=>{const low=i===2||i===3,[lx,ly0]=RE.pt(i,low?6.05:6.25),ly=low?ly0+17:ly0-4,t=tierOf(v[k]).k;
+      return `<text x="${lx}" y="${ly-9}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--muted)">${l}</text>`+
+        `<text x="${lx}" y="${ly+9}" text-anchor="middle" font-size="17" font-weight="700" fill="var(--t${t})" font-family="var(--f-num)">${v[k].toFixed(1)}</text>`;}).join("");
 }
-const rSum=(v,pos)=>`${tierHtml(overallOf(v,pos))}<span>종합 <b class="num">${overallOf(v,pos).toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${POS[pos]} 비중</span>`;
-function radarEdit(v,orig,pos){
-  const rings=[1,2,3,4,5].map(lv=>`<polygon points="${AREAS.map((_,i)=>RE.pt(i,lv).join(",")).join(" ")}" fill="none" stroke="var(--line)" stroke-width="${lv===5?1.5:1}"/>`).join("");
-  const spokes=AREAS.map((_,i)=>{const [x,y]=RE.pt(i,5);return `<line x1="${RE.C}" y1="${RE.C}" x2="${x}" y2="${y}" stroke="var(--line)"/>`;}).join("");
-  const ticks=[1,2,3,4,5].map(lv=>{const [x,y]=RE.pt(0,lv);return `<text x="${x+5}" y="${y+3}" font-size="9" fill="var(--muted)">${lv}</text>`;}).join("");
-  const was=AREAS.some(([k])=>orig[k]!==v[k])?`<polygon points="${rPoly(orig)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>`:"";
-  return `<svg id="rEdit" viewBox="-42 -30 344 318" role="img" aria-label="능력치 오각형. 꼭짓점을 끌어서 조절" style="width:100%;max-width:360px;display:block;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer">${rings}${spokes}${ticks}${was}<g id="rDyn">${rDyn(v,-1)}</g></svg>
-    <div class="balance" id="rSum" style="font-size:.9rem">${rSum(v,pos)}</div>
-    ${was?`<span class="small muted" style="text-align:center">점선은 수정 전 능력치</span>`:""}`;
+const rSum=(v,pos)=>`${tierHtml(overallOf(v,pos))}<span>종합 <b class="num">${overallOf(v,pos).toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${POS[pos]} 비중으로 계산</span>`;
+function radarEdit(v,orig,pos,editing){
+  const bands=[5,4,3,2,1].map((lv,n)=>`<polygon points="${lvPoly(lv)}" fill="var(--${n%2?"surface":"sunk"})" stroke="var(--line)" stroke-width="${lv===5?1.2:.6}"/>`).join("");
+  const spokes=AREAS.map((_,i)=>{const [x,y]=RE.pt(i,5);return `<line x1="${RE.C}" y1="${RE.C}" x2="${x}" y2="${y}" stroke="var(--line)" stroke-width=".8"/>`;}).join("");
+  const changed=AREAS.some(([k])=>orig[k]!==v[k]);
+  const was=changed?`<polygon points="${rPoly(orig)}" fill="none" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 3" stroke-linejoin="round"/>`:"";
+  const defs=`<defs><radialGradient id="rFill" cx="50%" cy="50%" r="55%"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.10"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:.38"/></radialGradient>
+    <filter id="rSh" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity=".25"/></filter></defs>`;
+  return `<div style="border-radius:16px;padding:6px 0 2px;${editing?"outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-soft)":""}">
+    <svg id="rEdit" viewBox="-38 -26 336 322" role="img" aria-label="능력치 오각형" style="width:100%;max-width:340px;display:block;margin:0 auto;${editing?"touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab":""}">${defs}${bands}${spokes}${was}<g id="rDyn">${rDyn(v,-1,editing)}</g></svg>
+    ${editing?`<div class="small" style="text-align:center;color:var(--accent);padding-bottom:6px">꼭짓점을 끌거나 축 위를 눌러 조절 · 0.5 단위${changed?" · 점선은 수정 전":""}</div>`:changed?`<div class="small muted" style="text-align:center;padding-bottom:6px">점선은 수정 전 능력치</div>`:""}</div>
+    <div class="balance" id="rSum" style="font-size:.9rem">${rSum(v,pos)}</div>`;
 }
 /* ---------- 경기 후 개인 피드백 (관리자 직접 보정) ---------- */
 const FB_STEPS=[-0.3,-0.2,-0.1,0,0.1,0.2,0.3];
