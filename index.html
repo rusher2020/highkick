@@ -281,8 +281,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792558583"></script>
-<script src="adapter.js?v=1792558583"></script>
+<script src="config.js?v=1792558674"></script>
+<script src="adapter.js?v=1792558674"></script>
 <script>
 (function(){
 "use strict";
@@ -1688,8 +1688,8 @@ function zoomPhoto(src,name,m){
   ov.onclick=()=>ov.remove();document.body.appendChild(ov);
 }
 document.addEventListener("click",e=>{
-  const z=e.target.closest&&e.target.closest("[data-zoom],[data-zoomsrc]");if(!z)return;
-  e.preventDefault();e.stopPropagation();
+  const z=e.target&&e.target.closest&&e.target.closest("[data-zoom],[data-zoomsrc]");if(!z||!z.dataset||!(z.dataset.zoom||z.dataset.zoomsrc))return;
+  if(e.preventDefault)e.preventDefault();if(e.stopPropagation)e.stopPropagation();
   if(z.dataset.zoom){const m=byId(z.dataset.zoom);if(m&&m.photo)zoomPhoto(m.photo,m.name,m);}
   else zoomPhoto(z.dataset.zoomsrc,z.dataset.zoomname,null);
 },true);
