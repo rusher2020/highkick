@@ -274,8 +274,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792556138"></script>
-<script src="adapter.js?v=1792556138"></script>
+<script src="config.js?v=1792556249"></script>
+<script src="adapter.js?v=1792556249"></script>
 <script>
 (function(){
 "use strict";
@@ -326,7 +326,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const r2=x=>Math.round(x*100)/100;
 const INJ=0.5;
-const adjOf=m=>(m.adj||0)-(m.injured?INJ:0);
+const adjOf=m=>-(m.injured?INJ:0); // 개인 점수 보정 없음: 경기 결과는 팀 조합(최근 성적)에만 씀
 const eff=m=>r2((m.score||3)+adjOf(m));
 const FOOT={L:"왼발",R:"오른발",B:"양발"};
 const badges=m=>(m.injured?" 🩹":"")+(m.tall?' <span class="ft tall">장신</span>':"")+(m.foot==="L"?' <span class="ft lf">왼발</span>':m.foot==="B"?' <span class="ft">LR</span>':"");
@@ -658,9 +658,6 @@ function renderMembers(){
   const cnt={S:0,A:0,B:0,C:0,D:0};members.filter(m=>m.active!==false).forEach(m=>cnt[tierOf(m.score).k]++);
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
   let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn small${delMode?"":" danger"}" id="delMode">${delMode?"삭제 취소":"회원 삭제"}</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
-  const oldApplied=matches.filter(mt=>mt.applied&&Object.values(mt.deltas||{}).some(x=>x));
-  if(oldApplied.length){const ppl=new Set(oldApplied.flatMap(mt=>Object.keys(mt.deltas||{}).filter(id=>mt.deltas[id]&&byId(id))));
-    h+=`<div class="notice" style="display:flex;flex-direction:column;gap:8px"><span><b>예전 경기 결과로 들어간 점수 보정</b>이 ${ppl.size}명에게 남아 있어요 (${oldApplied.length}경기일). 이제 경기 결과는 개인 점수에 쓰지 않으니 되돌려 주세요. 운영진이 직접 준 개인 피드백은 그대로 남아요.</span><button class="btn primary" id="undoAllRes">경기 결과 보정 모두 되돌리기</button></div>`;}
   if(!members.length){
     h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 슈터 드리블러 패스마스터 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
     <div class="panel small"><div class="label">점수 기준 (1~5점, 0.5 단위)</div><p style="margin:.4rem 0 0">5 = S · 4 = A · 3 = B · 2 = C · 1 = D. 4.5점은 A+, 3.5점은 B+로 표시됩니다. 경기 결과에 따라 승리 +0.1, 패배 −0.1이 보정되고, 3골 차 이상이면 1.5배가 됩니다. 보정은 ±1.5까지만 쌓입니다.</p></div>`;
@@ -685,16 +682,16 @@ function renderMembers(){
   <p style="margin:.6rem 0 0">6대6 대형은 <b>골키퍼(돌아가며) + 사이드 2 · 중앙 1 · 수비 2</b>를 기준으로, 팀마다 사이드 2 · 중앙 1 · 수비 2 자리가 채워지도록 짜고, 주 포지션으로 모자라면 "가능 포지션"으로 등록한 선수가 그 자리를 메웁니다.</p>
   <p style="margin:.6rem 0 0" class="muted">두 단계 사이면 0.5점 (예: 3과 4 사이 → 3.5). 운영진 3명이 각자 매긴 뒤 평균을 0.5 단위로 반올림하세요. 3점(B)이 가장 많고 S는 1~2명 정도가 적당합니다.</p>
 </details>
-  <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 기본 + 보정</span>`}</div>
+  <div class="row spread"><div class="seg"><button data-sort="score" aria-pressed="${memberSort==="score"}">점수순</button><button data-sort="name" aria-pressed="${memberSort==="name"}">이름순</button></div>${memberOrder&&lastEdited?`<button class="btn ghost small" id="resort">다시 정렬</button>`:`<span class="small muted">점수 = 능력치 종합 (부상 −0.5)</span>`}</div>
   ${delMode?`<div class="panel" style="position:sticky;top:8px;z-index:5;display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--bad)">
-    <div class="small"><b>삭제할 회원을 눌러서 고르세요.</b> 능력치·보정치는 다른 회원에게 영향이 없고, 삭제 기록은 변경 기록에 남아요. 잠시 쉬는 회원은 삭제 대신 회원 수정에서 "활동 중"을 끄면 돼요.</div>
+    <div class="small"><b>삭제할 회원을 눌러서 고르세요.</b> 다른 회원의 능력치에는 영향이 없고, 삭제 기록은 변경 기록에 남아요. 잠시 쉬는 회원은 삭제 대신 회원 수정에서 "활동 중"을 끄면 돼요.</div>
     ${me()?"":`<div class="field"><span class="label">누가 삭제하나요?</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-delby="${n}">${n}</button>`).join("")}</div></div>`}
     <div class="row spread"><span class="small">선택 <b class="num">${delSel.size}</b>명${delSel.size?` · ${[...delSel].map(id=>esc((byId(id)||{}).name||"")).join(", ")}`:""}</span><button class="btn danger small" id="delGo" ${delSel.size?"":"disabled"}>${delConfirm?"한 번 더 누르면 삭제":"선택한 회원 삭제"}</button></div></div>`:""}
   ${delMode?"":playerCard(list)}
   <div class="mtiles">${list.map(m=>{const pk=delSel.has(m.id),on=m.id===selMember&&!delMode;return `<button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-sel="${m.id}" aria-pressed="${on}"`} class="mt tint t-${tierOf(m.score).k}${on?" on":""}${pk?" pk":""}" style="${m.active===false&&!pk?"opacity:.5":""}">
     <span class="r1">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></span>
     <span class="r2 num"><span>${POS[m.pos]}${m.injured?" 🩹":""}${m.tall?" 장":""}${m.foot==="L"?" L":""}</span><b>${eff(m).toFixed(1)}</b></span>${m.unset&&m.unset.length?`<i class="dot" title="${m.unset.join("·")} 미입력"></i>`:""}</button>`;}).join("")}</div>
-  <div class="panel row spread"><div class="small"><b>분기 재평가</b><div class="muted">모든 회원의 보정치를 0으로 되돌립니다.</div></div><button class="btn danger small" id="resetAdj">보정치 초기화</button></div>`;
+`;
   v.innerHTML=h;
 }
 
@@ -715,12 +712,12 @@ function renderRecords(){
     const teamsH=mt.teams.map((t,i)=>`<div><span class="bib" style="background:${tn(i)[1]};width:10px;height:13px"></span><b>${tn(i)[0]}</b><span class="names">${t.names.map(esc).join(", ")}</span></div>`).join("");
     const games=playedGames(mt).map((g,gi)=>`<div class="game"><span class="bib" style="background:${tn(g.a)[1]};width:10px;height:13px"></span>${tn(g.a)[0]} <span class="num">${g.ga} : ${g.gb}</span> ${tn(g.b)[0]}<span class="bib" style="background:${tn(g.b)[1]};width:10px;height:13px"></span></div>`).join("");
     const opts=mt.teams.map((_,i)=>`<option value="${i}">${tn(i)[0]}</option>`).join("");
-    return `<article class="match"><div class="row spread"><b>${fmtDate(mt.date)}</b><span class="badge ${mt.applied?"wait":hasResult(mt)?"done":"wait"}">${mt.applied?"점수 반영됨(예전)":hasResult(mt)?"결과 입력됨":"결과 전"}</span></div>
+    return `<article class="match"><div class="row spread"><b>${fmtDate(mt.date)}</b><span class="badge ${hasResult(mt)?"done":"wait"}">${hasResult(mt)?"결과 입력됨":"결과 전"}</span></div>
     <div class="tlist">${teamsH}</div>
     ${wdlInputHtml(mt)}
-    ${hasResult(mt)&&!mt.applied?`<span class="small muted">결과는 개인 능력치를 바꾸지 않고, 다음 팀을 나눌 때 "최근 성적"으로만 참고해요.</span>`:""}
+    ${hasResult(mt)?`<span class="small muted">결과는 개인 능력치를 바꾸지 않고, 다음 팀을 나눌 때 "최근 성적"으로만 참고해요.</span>`:""}
     ${standHtml(mt,true)}
-    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:""}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
+    <div class="row"><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
   }).join("");
 }
 let pendingDelete=null;
@@ -795,7 +792,7 @@ function memberSeasonHtml(id){
 /* ---------- 경기 기록 수정 (날짜 · 팀 명단 · 스코어) ---------- */
 function openMatchEdit(id){
   const mt=matches.find(x=>x.id===id);if(!mt)return;
-  const locked=!!mt.applied;
+  const locked=false;
   let date=mt.date;
   // 팀별 선수 목록: 확정 당시 기록(snap)이 있으면 그걸, 없으면 지금 회원 정보로
   const rows=mt.teams.map(t=>Array.isArray(t.snap)?t.snap.map(x=>({...x})):[...t.ids.map(id=>{const m=byId(id);return m?snapOf(m):{id,name:"(삭제된 회원)"};}),...t.names.filter(n=>/\(용병\)$/.test(n)).map(n=>({name:n.replace(/\(용병\)$/,""),guest:true}))]);
@@ -867,7 +864,6 @@ function openEdit(m){
     <div class="field"><span class="label">피지컬 ${m.phy!=null&&!m.tallSet&&!isNew?`<span style="font-weight:400">(예전 피지컬 ${m.phy}점)</span>`:""}</span><div class="seg"><button type="button" data-tall="1" aria-pressed="${tall}">장신</button><button type="button" data-tall="0" aria-pressed="${!tall}">해당 없음</button></div></div>
     <label class="toggle"><input type="checkbox" id="fInj" ${m.injured?"checked":""}> 🩹 부상 중 <span class="small muted">(팀 짜기 때 −0.5점으로 계산)</span></label>
     <label class="toggle"><input type="checkbox" id="fAct" ${m.active!==false?"checked":""}> 활동 중 (끄면 출석 목록에서 숨김)</label>
-    ${isNew?"":`<div class="small muted">경기 보정치 <span class="num">${(m.adj||0)>0?"+":""}${(m.adj||0).toFixed(1)}</span> · 현재 점수 <span class="num">${eff(m).toFixed(1)}</span></div>`}
     ${by?`<div class="small muted">변경 기록에 <b>${esc(by)}</b>(으)로 남아요 <button type="button" class="btn ghost small" id="chgBy" style="padding:2px 6px">바꾸기</button></div>`
       :`<div class="field"><span class="label">누가 수정하나요? (한 번 고르면 이 기기에서 기억해요)</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-by="${n}">${n}</button>`).join("")}</div></div>`}
     ${isNew?"":memberSeasonHtml(m.id)}
@@ -1045,7 +1041,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.delg){const id=b.dataset.delg;if(pendingG!==id){pendingG=id;renderPlay();setTimeout(()=>{if(pendingG===id){pendingG=null;renderPlay();}},4000);return;}
     pendingG=null;board=board.filter(x=>x.id!==id);renderPlay();db.doc("games/"+id).delete().catch(dbErr);return;}
   if(b.id==="addG")return addManualGame();
-  if(b.dataset.wdl){const [mid,i,k,d]=b.dataset.wdl.split(":");const mt=matches.find(x=>x.id===mid);if(!mt||mt.applied)return;
+  if(b.dataset.wdl){const [mid,i,k,d]=b.dataset.wdl.split(":");const mt=matches.find(x=>x.id===mid);if(!mt)return;
     const rec=teamRecord(mt).map(x=>({...x}));rec[+i][k]=Math.max(0,rec[+i][k]+(+d));mt.wdl=rec;renderRecords();
     db.doc("matches/"+mt.id).update({wdl:rec}).catch(dbErr);return;}
   if(b.dataset.mstat){radarHidden=new Set();return openMatchStats(b.dataset.mstat);}
@@ -1200,7 +1196,6 @@ function standHtml(mt,compact){
 function teamTag(i){return `<span class="tn"><span class="bib" style="background:${BIBS[i%6][1]};width:10px;height:13px"></span>${BIBS[i%6][0]}</span>`;}
 function wdlInputHtml(mt){
   const rec=teamRecord(mt),errs=wdlCheck(rec),lb={w:"승",d:"무",l:"패"};
-  if(mt.applied)return `<span class="small muted">예전 방식으로 점수에 반영된 기록이에요. "반영 취소"를 누르면 보정이 없어지고 승·무·패를 다시 고칠 수 있어요.</span>`;
   const cell=(i,k,val)=>`<div class="wc"><button data-wdl="${mt.id}:${i}:${k}:-1" ${!val?"disabled":""} aria-label="${BIBS[i%6][0]} ${lb[k]} 빼기">−</button><b class="num">${val}</b><button data-wdl="${mt.id}:${i}:${k}:1" aria-label="${BIBS[i%6][0]} ${lb[k]} 더하기">+</button></div>`;
   return `<div class="wgrid"><span class="label">결과</span><span class="label">승</span><span class="label">무</span><span class="label">패</span>
     ${rec.map((r,i)=>`${teamTag(i)}${cell(i,"w",r.w)}${cell(i,"d",r.d)}${cell(i,"l",r.l)}`).join("")}</div>
@@ -1313,7 +1308,7 @@ function playerCard(list){
     <div class="pinfo">
       <div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span>${badges(m)}</div>
       <div class="pmeta">${tierName(m.score)} · <b style="color:var(--ink)">${POS[m.pos]}</b>${m.pos2&&m.pos2.length?" ("+m.pos2.map(x=>POS[x]).join("·")+" 가능)":""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.unset&&m.unset.length?`<br><span style="color:var(--warn)">● ${m.unset.length}개 항목 미입력</span>`:""}</div>
-      <div class="pscore"><b>${eff(m).toFixed(1)}</b><span class="small muted num">종합 ${m.score.toFixed(2)}${a?` · 보정 ${a>0?"+":""}${a.toFixed(1)}`:""}</span></div>
+      <div class="pscore"><b>${eff(m).toFixed(1)}</b><span class="small muted num">종합 ${m.score.toFixed(2)}${m.injured?" · 부상 −0.5":""}</span></div>
       <button class="btn small primary" data-edit="${m.id}" style="align-self:flex-start">수정</button>
     </div></div>`;
 }
