@@ -135,6 +135,12 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .mlist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .mlist li+li{border-top:1px solid var(--line)}
 .av{border-radius:50%;object-fit:cover;flex:none;box-shadow:0 0 0 2px var(--tc,var(--line));background:var(--sunk)}
+.zoomov{position:fixed;inset:0;z-index:60;background:rgba(8,14,10,.86);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;color:#fff;animation:zin .16s ease-out}
+.zoomov figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:12px}
+.zoomov img{width:min(78vw,320px);height:min(78vw,320px);border-radius:24px;object-fit:cover;box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.zoomov figcaption{display:flex;align-items:center;gap:8px;font-size:1.1rem;flex-wrap:wrap;justify-content:center}
+@keyframes zin{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.zoomov{animation:none}}
 .mtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .mt{position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 8px 7px 10px;border-radius:10px;border:1px solid var(--line);text-align:left;min-width:0}
 .mt .r1{display:flex;align-items:center;gap:4px;min-width:0}
@@ -275,8 +281,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792556657"></script>
-<script src="adapter.js?v=1792556657"></script>
+<script src="config.js?v=1792558583"></script>
+<script src="adapter.js?v=1792558583"></script>
 <script>
 (function(){
 "use strict";
@@ -342,7 +348,7 @@ function tierHtml(s){const t=tierOf(s),plus=t.label.endsWith("+");
 const tierName=s=>TIER_NAME[tierOf(s).k];
 // 얼굴 사진 (회원 문서에 작은 JPEG로 저장 · 운영진만 볼 수 있음)
 const avatar=(m,sz)=>m.photo?`<img class="av" src="${m.photo}" alt="" width="${sz}" height="${sz}" style="width:${sz}px;height:${sz}px;--tc:var(--t${tierOf(m.score).k})">`:"";
-function squareJpeg(src,cb,size){const img=new Image();img.onload=()=>{const n=Math.min(img.width,img.height),c=document.createElement("canvas"),S=size||192;c.width=c.height=S;
+function squareJpeg(src,cb,size){const img=new Image();img.onload=()=>{const n=Math.min(img.width,img.height),c=document.createElement("canvas"),S=size||320;c.width=c.height=S;
   c.getContext("2d").drawImage(img,(img.width-n)/2,(img.height-n)/2,n,n,0,0,S,S);cb(c.toDataURL("image/jpeg",.82));};img.onerror=()=>toast("사진을 읽지 못했어요");img.src=src;}
 const byId=id=>members.find(m=>m.id===id);
 // ---- 능력치 5가지 (1~5점): 슈터·드리블러·패스마스터·수비력·활동량 / 별도 표기: 장신·왼발 ----
@@ -856,7 +862,7 @@ function openEdit(m){
   const avg=()=>overallOf(v,pos);
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
-    <div class="row" style="gap:12px;flex-wrap:nowrap;align-items:flex-end">${photo?`<img class="av" src="${photo}" alt="" style="width:64px;height:64px;--tc:var(--t${tierOf(m.score).k})">`:`<span class="av" style="width:64px;height:64px;display:grid;place-items:center;color:var(--muted);font-size:.7rem">사진 없음</span>`}
+    <div class="row" style="gap:12px;flex-wrap:nowrap;align-items:flex-end">${photo?`<img class="av" src="${photo}" alt="${esc(m.name)} 사진 크게 보기" data-zoomsrc="${photo}" data-zoomname="${esc(m.name)}" style="width:64px;height:64px;cursor:zoom-in;--tc:var(--t${tierOf(m.score).k})">`:`<span class="av" style="width:64px;height:64px;display:grid;place-items:center;color:var(--muted);font-size:.7rem">사진 없음</span>`}
       <label class="field" style="flex:1;min-width:0"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label></div>
     <div class="row" style="gap:6px"><label class="btn small" style="cursor:pointer">${photo?"사진 바꾸기":"사진 넣기"}<input type="file" id="fPhoto" accept="image/*" hidden></label>${photo?`<button type="button" class="btn ghost small" id="fPhotoDel">사진 지우기</button>`:""}<span class="small muted">가운데를 정사각형으로 잘라 저장해요</span></div>
     <div class="field"><div class="row spread"><span class="label">능력치</span><button type="button" class="btn small ${rEditing?"primary":""}" id="rToggle">${rEditing?"수정 완료":"능력치 수정"}</button></div>${radarEdit(v,orig,pos,rEditing)}</div>
@@ -1312,7 +1318,7 @@ function openFaceMap(){
       <p class="small muted" style="margin:0">잘라 둔 얼굴 파일(.json)이나 얼굴 사진 여러 장을 올린 뒤, 사진마다 누구인지 골라 주세요. 사진은 운영진만 볼 수 있어요.</p>
       <div class="row" style="gap:6px"><label class="btn small primary" style="cursor:pointer">얼굴 파일·사진 불러오기<input type="file" id="fmIn" accept=".json,application/json,image/*" multiple hidden></label>${facePool.length?`<span class="small muted num">${facePool.length}장 · 연결 ${used.size}명</span>`:""}</div>
       ${facePool.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">${facePool.map((f,i)=>`<div class="panel" style="padding:8px;display:flex;flex-direction:column;gap:6px;align-items:center">
-        <div style="position:relative"><img src="${f.img}" alt="얼굴 ${i+1}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;${pick[i]?"box-shadow:0 0 0 3px var(--accent)":""}"><span class="num small" style="position:absolute;left:-4px;top:-4px;background:var(--ink);color:var(--bg);border-radius:999px;padding:1px 7px">${i+1}</span></div>
+        <div style="position:relative"><img src="${f.img}" alt="얼굴 ${i+1}" data-zoomsrc="${f.img}" data-zoomname="${i+1}번 얼굴" style="cursor:zoom-in;width:96px;height:96px;border-radius:50%;object-fit:cover;${pick[i]?"box-shadow:0 0 0 3px var(--accent)":""}"><span class="num small" style="position:absolute;left:-4px;top:-4px;background:var(--ink);color:var(--bg);border-radius:999px;padding:1px 7px">${i+1}</span></div>
         <select data-fm="${i}" style="padding:6px 8px;font-size:.85rem"><option value="">누구인가요?</option>${sorted.map(m=>`<option value="${m.id}" ${pick[i]===m.id?"selected":""} ${used.has(m.id)&&pick[i]!==m.id?"disabled":""}>${esc(m.name)}${m.photo?" · 사진 있음":""}</option>`).join("")}</select></div>`).join("")}</div>
         <button class="btn primary big" id="fmSave" ${used.size?"":"disabled"}>${used.size}명 사진 저장</button>`:""}
     </div></div>`;
@@ -1345,7 +1351,7 @@ function playerCard(list){
   return `<div class="pcard" aria-live="polite">
     <div>${radarView(m,"c")}</div>
     <div class="pinfo">
-      ${m.photo?`<div style="display:flex;align-items:center;gap:10px">${avatar(m,58)}<div style="min-width:0"><div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span></div>${badges(m)}</div></div>`:`<div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span>${badges(m)}</div>`}
+      ${m.photo?`<div style="display:flex;align-items:center;gap:10px"><span data-zoom="${m.id}" role="button" tabindex="0" aria-label="${esc(m.name)} 사진 크게 보기" style="cursor:zoom-in;line-height:0">${avatar(m,58)}</span><div style="min-width:0"><div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span></div>${badges(m)}</div></div>`:`<div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span>${badges(m)}</div>`}
       <div class="pmeta">${tierName(m.score)} · <b style="color:var(--ink)">${POS[m.pos]}</b>${m.pos2&&m.pos2.length?" ("+m.pos2.map(x=>POS[x]).join("·")+" 가능)":""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.unset&&m.unset.length?`<br><span style="color:var(--warn)">● ${m.unset.length}개 항목 미입력</span>`:""}</div>
       <div class="pscore"><b>${eff(m).toFixed(1)}</b><span class="small muted num">종합 ${m.score.toFixed(2)}${m.injured?" · 부상 −0.5":""}</span></div>
       <button class="btn small primary" data-edit="${m.id}" style="align-self:flex-start">수정</button>
@@ -1674,6 +1680,20 @@ async function sharePng(dateStr,teams){
   $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet"><div class="row spread"><h2>팀 편성 이미지</h2><button class="btn ghost small" id="cx">닫기</button></div><p class="small muted" style="margin:0">이미지를 길게 눌러 저장하거나 공유하세요.</p><img src="${url}" alt="팀 편성 이미지" style="width:100%;border-radius:12px"></div></div>`;
   $("#scrim").onclick=e=>{if(e.target.id==="scrim"){closeSheet();URL.revokeObjectURL(url);}};$("#cx").onclick=()=>{closeSheet();URL.revokeObjectURL(url);};
 }
+/* ---------- 사진 확대 보기 ---------- */
+function zoomPhoto(src,name,m){
+  const old=document.getElementById("zoomOv");if(old)old.remove();
+  const ov=document.createElement("div");ov.id="zoomOv";ov.className="zoomov";ov.setAttribute("role","dialog");ov.setAttribute("aria-label",(name||"")+" 사진");
+  ov.innerHTML=`<figure><img src="${src}" alt="${esc(name||"")}"><figcaption>${m?tierHtml(m.score):""}<b>${esc(name||"")}</b>${m?`<span class="small" style="opacity:.75">${tierName(m.score)} · ${POS[m.pos]} · ${eff(m).toFixed(1)}</span>`:""}</figcaption></figure><span class="small" style="opacity:.6">아무 곳이나 누르면 닫혀요</span>`;
+  ov.onclick=()=>ov.remove();document.body.appendChild(ov);
+}
+document.addEventListener("click",e=>{
+  const z=e.target.closest&&e.target.closest("[data-zoom],[data-zoomsrc]");if(!z)return;
+  e.preventDefault();e.stopPropagation();
+  if(z.dataset.zoom){const m=byId(z.dataset.zoom);if(m&&m.photo)zoomPhoto(m.photo,m.name,m);}
+  else zoomPhoto(z.dataset.zoomsrc,z.dataset.zoomname,null);
+},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const o=document.getElementById("zoomOv");if(o)o.remove();}});
 /* ---------- boot ---------- */
 setInterval(()=>{headerStats();const c=document.getElementById("cdLine");if(c){const x=countdown(gameDate(),matchTime);c.textContent=x.txt;c.style.color=`var(--${x.cls||"ink"})`;}},30000);
 try{const t=localStorage.getItem("tab");if(t&&["make","members","records"].includes(t))switchTab(t);}catch(e){}
