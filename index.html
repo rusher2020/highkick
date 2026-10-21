@@ -274,8 +274,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792555827"></script>
-<script src="adapter.js?v=1792555827"></script>
+<script src="config.js?v=1792556138"></script>
+<script src="adapter.js?v=1792556138"></script>
 <script>
 (function(){
 "use strict";
@@ -658,6 +658,9 @@ function renderMembers(){
   const cnt={S:0,A:0,B:0,C:0,D:0};members.filter(m=>m.active!==false).forEach(m=>cnt[tierOf(m.score).k]++);
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
   let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn small${delMode?"":" danger"}" id="delMode">${delMode?"삭제 취소":"회원 삭제"}</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
+  const oldApplied=matches.filter(mt=>mt.applied&&Object.values(mt.deltas||{}).some(x=>x));
+  if(oldApplied.length){const ppl=new Set(oldApplied.flatMap(mt=>Object.keys(mt.deltas||{}).filter(id=>mt.deltas[id]&&byId(id))));
+    h+=`<div class="notice" style="display:flex;flex-direction:column;gap:8px"><span><b>예전 경기 결과로 들어간 점수 보정</b>이 ${ppl.size}명에게 남아 있어요 (${oldApplied.length}경기일). 이제 경기 결과는 개인 점수에 쓰지 않으니 되돌려 주세요. 운영진이 직접 준 개인 피드백은 그대로 남아요.</span><button class="btn primary" id="undoAllRes">경기 결과 보정 모두 되돌리기</button></div>`;}
   if(!members.length){
     h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 슈터 드리블러 패스마스터 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
     <div class="panel small"><div class="label">점수 기준 (1~5점, 0.5 단위)</div><p style="margin:.4rem 0 0">5 = S · 4 = A · 3 = B · 2 = C · 1 = D. 4.5점은 A+, 3.5점은 B+로 표시됩니다. 경기 결과에 따라 승리 +0.1, 패배 −0.1이 보정되고, 3골 차 이상이면 1.5배가 됩니다. 보정은 ±1.5까지만 쌓입니다.</p></div>`;
@@ -960,6 +963,15 @@ async function confirmTeams(){
     savePublic(o.teams.map(t=>({names:t.map(m=>m.name),guest:t.map(m=>!!m.guest)})),ref&&ref.id||null);
     toast("확정했어요. 경기가 끝나면 이 기록에 팀별 승·무·패를 넣어 주세요.");options=[];renderMake();if(ref&&ref.id)playId=ref.id;recView="matches";switchTab("records");}catch(e){dbErr(e);}
 }
+// 예전 방식으로 반영된 경기 결과 보정을 한 번에 되돌림 (회원마다 합계를 빼서 한 번만 저장)
+async function undoAllResults(){
+  try{const ms=matches.filter(x=>x.applied),tot={};
+    ms.forEach(mt=>Object.entries(mt.deltas||{}).forEach(([id,d])=>{if(d)tot[id]=(tot[id]||0)+d;}));
+    let n=0;for(const [id,d] of Object.entries(tot)){const m=byId(id);if(!m)continue;await db.doc("members/"+id).update({adj:r2((m.adj||0)-d)});n++;}
+    for(const mt of ms)await db.doc("matches/"+mt.id).update({applied:false,deltas:{}});
+    addLog({kind:"undoRes",count:n});toast(`${n}명의 경기 결과 보정을 되돌렸어요`);
+  }catch(e){dbErr(e);}
+}
 async function applyMatch(mt,undo){
   try{
     if(!undo){
@@ -1050,6 +1062,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.sort){memberSort=b.dataset.sort;memberOrder=null;lastEdited=null;renderMembers();return;}
   if(b.id==="resort"){memberOrder=null;lastEdited=null;renderMembers();return;}
   if(b.id==="resetAdj")return resetAll(b);
+  if(b.id==="undoAllRes"){b.disabled=true;b.textContent="되돌리는 중…";undoAllResults();return;}
   if(b.dataset.addgame){const mt=matches.find(x=>x.id===b.dataset.addgame),f=document.querySelector(`[data-form="${mt.id}"]`);
     const [sa,sb]=f.querySelectorAll("select"),[ia,ib]=f.querySelectorAll("input");const a=+sa.value,bb=+sb.value;
     if(a===bb){toast("서로 다른 두 팀을 골라 주세요");return;}
@@ -1464,6 +1477,7 @@ function logLine(l){
   if(l.kind==="add")return `${who}님이 ${nm} 회원 추가 (${Object.entries(l.changes||{}).map(([k,v])=>(AREA_KO[k]||k)+" "+v[1]).join(", ")})`;
   if(l.kind==="delete")return `${who}님이 ${nm} 회원 삭제`;
   if(l.kind==="feedback")return `${who}님이 ${esc(l.matchDate?fmtDate(l.matchDate):"")} 개인 피드백: `+(l.items||[]).map(i=>`${esc(i.name)} <b class="${i.delta>0?"up":"down"}">${i.delta>0?"+":""}${i.delta.toFixed(1)}</b>`).join(", ");
+  if(l.kind==="undoRes")return `${who}님이 예전 경기 결과 보정 되돌리기 (${l.count||0}명)`;
   if(l.kind==="reset")return `${who}님이 보정치 전체 초기화 (${l.count||0}명)`;
   return `${who}님 변경`;
 }
