@@ -134,6 +134,22 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--muted)}
 .mlist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .mlist li+li{border-top:1px solid var(--line)}
+.mtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mt{position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 8px 7px 10px;border-radius:10px;border:1px solid var(--line);text-align:left;min-width:0}
+.mt .r1{display:flex;align-items:center;gap:4px;min-width:0}
+.mt .r1 .tb svg{width:18px;height:21px}
+.mt .nm{font-size:.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.mt .r2{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}
+.mt .r2 b{font-size:.85rem;color:var(--ink)}
+.mt.on{outline:2.5px solid var(--accent);outline-offset:-1px}
+.mt.pk{outline:2px solid var(--bad);outline-offset:-1px;background:#FBE3E1}
+.mt .dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.pcard{position:sticky;top:0;z-index:6;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,52%) 1fr;gap:4px 8px;align-items:center;box-shadow:0 6px 14px -10px rgba(0,0,0,.35)}
+.pcard .pinfo{display:flex;flex-direction:column;gap:5px;min-width:0}
+.pcard .pname{font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pcard .pmeta{font-size:.78rem;color:var(--muted);line-height:1.45}
+.pcard .pscore{display:flex;align-items:baseline;gap:6px}
+.pcard .pscore b{font:700 1.5rem var(--f-num)}
 .mlist button{width:100%;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;padding:10px 12px;background:none;border:0;text-align:left}
 .mlist .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .mlist .sub{font-size:.75rem;color:var(--muted);display:block}
@@ -258,8 +274,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792555548"></script>
-<script src="adapter.js?v=1792555548"></script>
+<script src="config.js?v=1792555827"></script>
+<script src="adapter.js?v=1792555827"></script>
 <script>
 (function(){
 "use strict";
@@ -290,6 +306,7 @@ async function addLog(o){if(!db)return;try{await db.collection("logs").add({at:D
 const headcount=()=>attend.size+guests.length;
 let teamCount=null;
 let options=[], optIdx=0, selected=null;
+let selMember=null;
 let tab="make", memberSort="score", memberOrder=null, lastEdited=null, delMode=false, delSel=new Set(), delConfirm=false;
 let attendTimer=null;
 let matchDate=null; // 다음 경기 날짜 (출석·조합·기록·이미지에 쓰임)
@@ -670,7 +687,10 @@ function renderMembers(){
     <div class="small"><b>삭제할 회원을 눌러서 고르세요.</b> 능력치·보정치는 다른 회원에게 영향이 없고, 삭제 기록은 변경 기록에 남아요. 잠시 쉬는 회원은 삭제 대신 회원 수정에서 "활동 중"을 끄면 돼요.</div>
     ${me()?"":`<div class="field"><span class="label">누가 삭제하나요?</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-delby="${n}">${n}</button>`).join("")}</div></div>`}
     <div class="row spread"><span class="small">선택 <b class="num">${delSel.size}</b>명${delSel.size?` · ${[...delSel].map(id=>esc((byId(id)||{}).name||"")).join(", ")}`:""}</span><button class="btn danger small" id="delGo" ${delSel.size?"":"disabled"}>${delConfirm?"한 번 더 누르면 삭제":"선택한 회원 삭제"}</button></div></div>`:""}
-  <ul class="mlist">${list.map(m=>{const a=m.adj||0,pk=delSel.has(m.id);return `<li><button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-edit="${m.id}"`} class="tint t-${tierOf(m.score).k}" style="${m.active===false&&!pk?"opacity:.5;":""}${m.id===lastEdited&&!delMode?"background:var(--accent-soft)":""}${pk?"background:#FBE3E1;outline:2px solid var(--bad);outline-offset:-2px":""}">${tierHtml(m.score)}<span class="nm">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span> `:""}${esc(m.name)}${badges(m)}<span class="sub num">${tierName(m.score)} · ${POS[m.pos]}${m.pos2&&m.pos2.length?"("+m.pos2.map(x=>POS[x]).join("·")+")":""} · ${statLine(m)}${m.unset&&m.unset.length?` · <b style="color:var(--warn)">${m.unset.join("·")} 미입력</b>`:""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.active===false?" · 휴면":""}</span></span><span class="adj ${a>0?"up":a<0?"down":"muted"}">${a>0?"+":""}${a?a.toFixed(1):"±0"}</span><span class="eff">${eff(m).toFixed(1)}</span></button></li>`;}).join("")}</ul>
+  ${delMode?"":playerCard(list)}
+  <div class="mtiles">${list.map(m=>{const pk=delSel.has(m.id),on=m.id===selMember&&!delMode;return `<button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-sel="${m.id}" aria-pressed="${on}"`} class="mt tint t-${tierOf(m.score).k}${on?" on":""}${pk?" pk":""}" style="${m.active===false&&!pk?"opacity:.5":""}">
+    <span class="r1">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></span>
+    <span class="r2 num"><span>${POS[m.pos]}${m.injured?" 🩹":""}${m.tall?" 장":""}${m.foot==="L"?" L":""}</span><b>${eff(m).toFixed(1)}</b></span>${m.unset&&m.unset.length?`<i class="dot" title="${m.unset.join("·")} 미입력"></i>`:""}</button>`;}).join("")}</div>
   <div class="panel row spread"><div class="small"><b>분기 재평가</b><div class="muted">모든 회원의 보정치를 0으로 되돌립니다.</div></div><button class="btn danger small" id="resetAdj">보정치 초기화</button></div>`;
   v.innerHTML=h;
 }
@@ -1026,6 +1046,7 @@ document.addEventListener("click",e=>{
   if(b.id==="delGo")return deleteSelected();
   if(b.id==="bulk"||b.id==="bulk2")return openBulk();
   if(b.dataset.edit)return openEdit({...byId(b.dataset.edit)});
+  if(b.dataset.sel){selMember=b.dataset.sel;const y=window.scrollY;renderMembers();window.scrollTo(0,y);return;}
   if(b.dataset.sort){memberSort=b.dataset.sort;memberOrder=null;lastEdited=null;renderMembers();return;}
   if(b.id==="resort"){memberOrder=null;lastEdited=null;renderMembers();return;}
   if(b.id==="resetAdj")return resetAll(b);
@@ -1260,6 +1281,28 @@ function radarEdit(v,orig,pos,editing){
     <svg id="rEdit" viewBox="-38 -26 336 322" role="img" aria-label="능력치 오각형" style="width:100%;max-width:340px;display:block;margin:0 auto;${editing?"touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab":""}">${defs}${bands}${spokes}${was}<g id="rDyn">${rDyn(v,-1,editing)}</g></svg>
     ${editing?`<div class="small" style="text-align:center;color:var(--accent);padding-bottom:6px">꼭짓점을 끌거나 축 위를 눌러 조절 · 0.5 단위${changed?" · 점선은 수정 전":""}</div>`:changed?`<div class="small muted" style="text-align:center;padding-bottom:6px">점선은 수정 전 능력치</div>`:""}</div>
     <div class="balance" id="rSum" style="font-size:.9rem">${rSum(v,pos)}</div>`;
+}
+/* ---------- 회원 티어 탭 위쪽 공통 선수 카드 ---------- */
+function radarView(v,uid){
+  const R=RE,bands=[5,4,3,2,1].map((lv,n)=>`<polygon points="${lvPoly(lv)}" fill="var(--${n%2?"surface":"sunk"})" stroke="var(--line)" stroke-width="${lv===5?1.2:.6}"/>`).join("");
+  const spokes=AREAS.map((_,i)=>{const [x,y]=R.pt(i,5);return `<line x1="${R.C}" y1="${R.C}" x2="${x}" y2="${y}" stroke="var(--line)" stroke-width=".8"/>`;}).join("");
+  const dots=AREAS.map(([k],i)=>{const [x,y]=R.pt(i,v[k]);return `<circle cx="${x}" cy="${y}" r="4.5" fill="var(--accent)"/>`;}).join("");
+  const lab=AREAS.map(([k],i)=>{const low=i===2||i===3,[lx,ly0]=R.pt(i,low?6.2:6.4),ly=low?ly0+14:ly0-2,t=tierOf(v[k]).k;
+    return `<text x="${lx}" y="${ly-10}" text-anchor="middle" font-size="19" font-weight="600" fill="var(--muted)">${AREA_SHORT[k]}</text><text x="${lx}" y="${ly+12}" text-anchor="middle" font-size="25" font-weight="700" fill="var(--t${t})" font-family="var(--f-num)">${v[k].toFixed(1)}</text>`;}).join("");
+  return `<svg viewBox="-44 -36 348 344" role="img" aria-label="능력치 오각형" style="width:100%;display:block"><defs><radialGradient id="pf${uid}" cx="50%" cy="50%" r="55%"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.12"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:.42"/></radialGradient></defs>${bands}${spokes}<polygon points="${rPoly(v)}" fill="url(#pf${uid})" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round"/>${dots}${lab}</svg>`;
+}
+function playerCard(list){
+  if(!list.length)return "";
+  if(!selMember||!byId(selMember))selMember=list[0].id;
+  const m=byId(selMember),a=m.adj||0;
+  return `<div class="pcard" aria-live="polite">
+    <div>${radarView(m,"c")}</div>
+    <div class="pinfo">
+      <div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span>${badges(m)}</div>
+      <div class="pmeta">${tierName(m.score)} · <b style="color:var(--ink)">${POS[m.pos]}</b>${m.pos2&&m.pos2.length?" ("+m.pos2.map(x=>POS[x]).join("·")+" 가능)":""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.unset&&m.unset.length?`<br><span style="color:var(--warn)">● ${m.unset.length}개 항목 미입력</span>`:""}</div>
+      <div class="pscore"><b>${eff(m).toFixed(1)}</b><span class="small muted num">종합 ${m.score.toFixed(2)}${a?` · 보정 ${a>0?"+":""}${a.toFixed(1)}`:""}</span></div>
+      <button class="btn small primary" data-edit="${m.id}" style="align-self:flex-start">수정</button>
+    </div></div>`;
 }
 /* ---------- 경기 후 개인 피드백 (관리자 직접 보정) ---------- */
 const FB_STEPS=[-0.3,-0.2,-0.1,0,0.1,0.2,0.3];
