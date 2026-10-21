@@ -258,8 +258,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792555062"></script>
-<script src="adapter.js?v=1792555062"></script>
+<script src="config.js?v=1792555281"></script>
+<script src="adapter.js?v=1792555281"></script>
 <script>
 (function(){
 "use strict";
@@ -832,11 +832,13 @@ function openEdit(m){
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label>
+    <div class="field"><span class="label">능력치 <span style="font-weight:400">(꼭짓점을 끌거나 축을 눌러서 조절 · 0.5 단위)</span></span>${radarEdit(v,orig,pos)}</div>
+    <details class="panel" style="padding:10px 12px"><summary style="cursor:pointer;font-weight:700;font-size:.88rem">숫자 버튼으로 고르기</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
     ${AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(s=>`<button type="button" data-a="${a}" data-s="${s}" aria-pressed="${s===v[a]}">${s}</button>`).join("")}</div></div>`).join("")}
+    </div></details>
     <div class="field"><span class="label">주 포지션 ${posTouched?"":`<span style="font-weight:400;color:var(--warn)">(능력치로 자동 추천 중 · 눌러서 확정)</span>`}</span><div class="seg">${POS_KEYS.map(p=>`<button type="button" data-pos="${p}" aria-pressed="${pos===p}">${POS[p]}</button>`).join("")}</div>
       <div class="small muted num" style="margin-top:4px">포지션별 종합: ${POS_KEYS.map(p=>`${POS[p]} <b>${overallOf(v,p).toFixed(1)}</b>`).join(" · ")}</div></div>
     <div class="field"><span class="label">가능 포지션 <span style="font-weight:400">(여러 개 선택 · 그 자리가 비면 들어갈 수 있는 곳)</span></span><div class="seg">${POS_KEYS.filter(p=>p!==pos).map(p=>`<button type="button" data-pos2="${p}" aria-pressed="${pos2.includes(p)}">${POS[p]}</button>`).join("")}</div></div>
-    <div class="balance" style="font-size:.9rem">${tierHtml(avg())}<span>종합 <b class="num">${avg().toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${POS[pos]} 비중으로 계산</span></div>
     ${m.unset&&m.unset.length&&!isNew?`<div class="small" style="color:var(--warn)">${m.unset.join("·")}은(는) 아직 입력 전이라 임시 점수예요. 확인 후 저장해 주세요.</div>`:""}
     <div class="field"><span class="label">주발</span><div class="seg">${[["L","왼발"],["R","오른발"],["B","양발"]].map(([k,l])=>`<button type="button" data-foot="${k}" aria-pressed="${foot===k}">${l}</button>`).join("")}</div></div>
     <div class="field"><span class="label">피지컬 ${m.phy!=null&&!m.tallSet&&!isNew?`<span style="font-weight:400">(예전 피지컬 ${m.phy}점)</span>`:""}</span><div class="seg"><button type="button" data-tall="1" aria-pressed="${tall}">장신</button><button type="button" data-tall="0" aria-pressed="${!tall}">해당 없음</button></div></div>
@@ -854,6 +856,16 @@ function openEdit(m){
   $("#cx").onclick=closeSheet;
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;v[b.dataset.a]=+b.dataset.s;if(!posTouched)pos=suggestPos(v);draw();});
   const keepForm=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;};
+  // 레이더 직접 조절: 누른 위치에서 가장 가까운 축을 잡고, 끄는 동안 그 축 값만 바뀜
+  const svg=$("#rEdit");if(svg){let ax=-1;
+    const loc=e=>{const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return [vb.x+(e.clientX-r.left)/r.width*vb.width,vb.y+(e.clientY-r.top)/r.height*vb.height];};
+    const setFrom=(x,y,pick)=>{const dx=x-RE.C,dy=y-RE.C;
+      if(pick){const a=Math.atan2(dy,dx);let bd=9;for(let i=0;i<5;i++){let d=Math.abs(a-RE.ang(i));d=Math.min(d,2*Math.PI-d);if(d<bd){bd=d;ax=i;}}}
+      const proj=(dx*Math.cos(RE.ang(ax))+dy*Math.sin(RE.ang(ax)))/RE.R*5,val=Math.max(1,Math.min(5,Math.round(proj*2)/2)),k=AREAS[ax][0];
+      if(v[k]!==val){v[k]=val;if(!posTouched)pos=suggestPos(v);const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,ax);const t=$("#rSum");if(t)t.innerHTML=rSum(v,pos);}};
+    svg.addEventListener("pointerdown",e=>{e.preventDefault();try{svg.setPointerCapture(e.pointerId);}catch(_){}keepForm();const [x,y]=loc(e);setFrom(x,y,true);const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,ax);});
+    svg.addEventListener("pointermove",e=>{if(ax<0)return;e.preventDefault();const [x,y]=loc(e);setFrom(x,y,false);});
+    const end=()=>{if(ax<0)return;ax=-1;draw();};svg.addEventListener("pointerup",end);svg.addEventListener("pointercancel",end);}
   document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{keepForm();pos=b.dataset.pos;posTouched=true;pos2=pos2.filter(x=>x!==pos);draw();});
   document.querySelectorAll("[data-pos2]").forEach(b=>b.onclick=()=>{keepForm();const p=b.dataset.pos2;pos2=pos2.includes(p)?pos2.filter(x=>x!==p):[...pos2,p];draw();});
   document.querySelectorAll("[data-foot]").forEach(b=>b.onclick=()=>{keepForm();foot=foot===b.dataset.foot?"":b.dataset.foot;draw();});
@@ -1221,6 +1233,27 @@ function openMatchStats(id){
       <p class="small muted" style="margin:6px 0 0">● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼</p></details>
   </div></div>`;
   $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
+}
+/* ---------- 능력치 오각형 (회원 수정에서 직접 끌어서 조절) ---------- */
+const RE={C:130,R:100,ang:i=>-Math.PI/2+i*2*Math.PI/5};
+RE.pt=(i,val)=>[RE.C+Math.cos(RE.ang(i))*RE.R*val/5,RE.C+Math.sin(RE.ang(i))*RE.R*val/5];
+const rPoly=v=>AREAS.map(([k],i)=>RE.pt(i,v[k]).map(n=>n.toFixed(1)).join(",")).join(" ");
+function rDyn(v,act){
+  return `<polygon points="${rPoly(v)}" fill="var(--accent)" fill-opacity=".2" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>`+
+    AREAS.map(([k,l],i)=>{const [x,y]=RE.pt(i,v[k]),low=i===2||i===3,[lx,ly0]=RE.pt(i,low?6.1:6.35),ly=low?ly0+12:ly0,on=act===i;
+      return `<circle cx="${x}" cy="${y}" r="${on?13:10}" fill="var(--surface)" stroke="var(--accent)" stroke-width="${on?4:3}"/>`+
+        `<text x="${lx}" y="${ly-8}" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ink)">${l}</text>`+
+        `<text x="${lx}" y="${ly+9}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--accent)" font-family="var(--f-num)">${v[k].toFixed(1)}</text>`;}).join("");
+}
+const rSum=(v,pos)=>`${tierHtml(overallOf(v,pos))}<span>종합 <b class="num">${overallOf(v,pos).toFixed(2)}</b></span><span class="small muted" style="margin-left:auto">${POS[pos]} 비중</span>`;
+function radarEdit(v,orig,pos){
+  const rings=[1,2,3,4,5].map(lv=>`<polygon points="${AREAS.map((_,i)=>RE.pt(i,lv).join(",")).join(" ")}" fill="none" stroke="var(--line)" stroke-width="${lv===5?1.5:1}"/>`).join("");
+  const spokes=AREAS.map((_,i)=>{const [x,y]=RE.pt(i,5);return `<line x1="${RE.C}" y1="${RE.C}" x2="${x}" y2="${y}" stroke="var(--line)"/>`;}).join("");
+  const ticks=[1,2,3,4,5].map(lv=>{const [x,y]=RE.pt(0,lv);return `<text x="${x+5}" y="${y+3}" font-size="9" fill="var(--muted)">${lv}</text>`;}).join("");
+  const was=AREAS.some(([k])=>orig[k]!==v[k])?`<polygon points="${rPoly(orig)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>`:"";
+  return `<svg id="rEdit" viewBox="-42 -30 344 318" role="img" aria-label="능력치 오각형. 꼭짓점을 끌어서 조절" style="width:100%;max-width:360px;display:block;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer">${rings}${spokes}${ticks}${was}<g id="rDyn">${rDyn(v,-1)}</g></svg>
+    <div class="balance" id="rSum" style="font-size:.9rem">${rSum(v,pos)}</div>
+    ${was?`<span class="small muted" style="text-align:center">점선은 수정 전 능력치</span>`:""}`;
 }
 /* ---------- 경기 후 개인 피드백 (관리자 직접 보정) ---------- */
 const FB_STEPS=[-0.3,-0.2,-0.1,0,0.1,0.2,0.3];
