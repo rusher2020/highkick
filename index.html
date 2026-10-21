@@ -134,6 +134,7 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--muted)}
 .mlist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .mlist li+li{border-top:1px solid var(--line)}
+.av{border-radius:50%;object-fit:cover;flex:none;box-shadow:0 0 0 2px var(--tc,var(--line));background:var(--sunk)}
 .mtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .mt{position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 8px 7px 10px;border-radius:10px;border:1px solid var(--line);text-align:left;min-width:0}
 .mt .r1{display:flex;align-items:center;gap:4px;min-width:0}
@@ -274,8 +275,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792556249"></script>
-<script src="adapter.js?v=1792556249"></script>
+<script src="config.js?v=1792556657"></script>
+<script src="adapter.js?v=1792556657"></script>
 <script>
 (function(){
 "use strict";
@@ -339,6 +340,10 @@ function tierHtml(s){const t=tierOf(s),plus=t.label.endsWith("+");
     (t.k==="S"?`<path d="M8.4 4.4 10 6l2-2.6L14 6l1.6-1.6-.6 3H9z" fill="#FFD34D"/>`:"")+
     `<text x="12" y="${plus?17.5:18}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-weight="700" font-size="${plus?9.5:11.5}" fill="#fff">${t.label}</text></svg></span>`;}
 const tierName=s=>TIER_NAME[tierOf(s).k];
+// 얼굴 사진 (회원 문서에 작은 JPEG로 저장 · 운영진만 볼 수 있음)
+const avatar=(m,sz)=>m.photo?`<img class="av" src="${m.photo}" alt="" width="${sz}" height="${sz}" style="width:${sz}px;height:${sz}px;--tc:var(--t${tierOf(m.score).k})">`:"";
+function squareJpeg(src,cb,size){const img=new Image();img.onload=()=>{const n=Math.min(img.width,img.height),c=document.createElement("canvas"),S=size||192;c.width=c.height=S;
+  c.getContext("2d").drawImage(img,(img.width-n)/2,(img.height-n)/2,n,n,0,0,S,S);cb(c.toDataURL("image/jpeg",.82));};img.onerror=()=>toast("사진을 읽지 못했어요");img.src=src;}
 const byId=id=>members.find(m=>m.id===id);
 // ---- 능력치 5가지 (1~5점): 슈터·드리블러·패스마스터·수비력·활동량 / 별도 표기: 장신·왼발 ----
 const AREAS=[["sht","슈터"],["dri","드리블러"],["pas","패스마스터"],["def","수비력"],["sta","활동량"]];
@@ -657,7 +662,7 @@ function renderMembers(){
   }
   const cnt={S:0,A:0,B:0,C:0,D:0};members.filter(m=>m.active!==false).forEach(m=>cnt[tierOf(m.score).k]++);
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
-  let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn small${delMode?"":" danger"}" id="delMode">${delMode?"삭제 취소":"회원 삭제"}</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
+  let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="faceMap">얼굴 사진 연결</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn small${delMode?"":" danger"}" id="delMode">${delMode?"삭제 취소":"회원 삭제"}</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
   if(!members.length){
     h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 슈터 드리블러 패스마스터 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
     <div class="panel small"><div class="label">점수 기준 (1~5점, 0.5 단위)</div><p style="margin:.4rem 0 0">5 = S · 4 = A · 3 = B · 2 = C · 1 = D. 4.5점은 A+, 3.5점은 B+로 표시됩니다. 경기 결과에 따라 승리 +0.1, 패배 −0.1이 보정되고, 3골 차 이상이면 1.5배가 됩니다. 보정은 ±1.5까지만 쌓입니다.</p></div>`;
@@ -689,7 +694,7 @@ function renderMembers(){
     <div class="row spread"><span class="small">선택 <b class="num">${delSel.size}</b>명${delSel.size?` · ${[...delSel].map(id=>esc((byId(id)||{}).name||"")).join(", ")}`:""}</span><button class="btn danger small" id="delGo" ${delSel.size?"":"disabled"}>${delConfirm?"한 번 더 누르면 삭제":"선택한 회원 삭제"}</button></div></div>`:""}
   ${delMode?"":playerCard(list)}
   <div class="mtiles">${list.map(m=>{const pk=delSel.has(m.id),on=m.id===selMember&&!delMode;return `<button ${delMode?`data-delpick="${m.id}" aria-pressed="${pk}"`:`data-sel="${m.id}" aria-pressed="${on}"`} class="mt tint t-${tierOf(m.score).k}${on?" on":""}${pk?" pk":""}" style="${m.active===false&&!pk?"opacity:.5":""}">
-    <span class="r1">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></span>
+    <span class="r1">${delMode?`<span style="color:var(--${pk?"bad":"muted"})">${pk?"☑":"☐"}</span>`:m.photo?avatar(m,24):tierHtml(m.score)}<span class="nm">${esc(m.name)}</span></span>
     <span class="r2 num"><span>${POS[m.pos]}${m.injured?" 🩹":""}${m.tall?" 장":""}${m.foot==="L"?" L":""}</span><b>${eff(m).toFixed(1)}</b></span>${m.unset&&m.unset.length?`<i class="dot" title="${m.unset.join("·")} 미입력"></i>`:""}</button>`;}).join("")}</div>
 `;
   v.innerHTML=h;
@@ -846,12 +851,14 @@ function closeSheet(){$("#sheetRoot").innerHTML="";}
 function openEdit(m){
   const isNew=!m;m=norm(m||{name:"",score:3,adj:0,active:true});
   const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;let rEditing=isNew;
-  let pos=m.pos,posTouched=!!m.posSet2,pos2=[...(m.pos2||[])];
+  let pos=m.pos,posTouched=!!m.posSet2,pos2=[...(m.pos2||[])],photo=m.photo||"";
   const orig={name:m.name,...v,tall,pos:m.pos,pos2:pos2.join(","),active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
   const avg=()=>overallOf(v,pos);
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
-    <label class="field"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label>
+    <div class="row" style="gap:12px;flex-wrap:nowrap;align-items:flex-end">${photo?`<img class="av" src="${photo}" alt="" style="width:64px;height:64px;--tc:var(--t${tierOf(m.score).k})">`:`<span class="av" style="width:64px;height:64px;display:grid;place-items:center;color:var(--muted);font-size:.7rem">사진 없음</span>`}
+      <label class="field" style="flex:1;min-width:0"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label></div>
+    <div class="row" style="gap:6px"><label class="btn small" style="cursor:pointer">${photo?"사진 바꾸기":"사진 넣기"}<input type="file" id="fPhoto" accept="image/*" hidden></label>${photo?`<button type="button" class="btn ghost small" id="fPhotoDel">사진 지우기</button>`:""}<span class="small muted">가운데를 정사각형으로 잘라 저장해요</span></div>
     <div class="field"><div class="row spread"><span class="label">능력치</span><button type="button" class="btn small ${rEditing?"primary":""}" id="rToggle">${rEditing?"수정 완료":"능력치 수정"}</button></div>${radarEdit(v,orig,pos,rEditing)}</div>
     <details class="panel" style="padding:10px 12px" ${rEditing?"":"hidden"}><summary style="cursor:pointer;font-weight:700;font-size:.88rem">숫자 버튼으로 고르기</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
     ${AREAS.map(([a,l])=>`<div class="field"><span class="label">${l} ${v[a]}점</span><div class="scores">${SCORES.map(s=>`<button type="button" data-a="${a}" data-s="${s}" aria-pressed="${s===v[a]}">${s}</button>`).join("")}</div></div>`).join("")}
@@ -876,6 +883,8 @@ function openEdit(m){
   document.querySelectorAll("[data-a]").forEach(b=>b.onclick=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;v[b.dataset.a]=+b.dataset.s;if(!posTouched)pos=suggestPos(v);draw();});
   const keepForm=()=>{m.name=$("#fName").value;m.active=$("#fAct").checked;m.injured=$("#fInj").checked;};
   // 레이더 직접 조절: 누른 위치에서 가장 가까운 축을 잡고, 끄는 동안 그 축 값만 바뀜
+  const fp=$("#fPhoto");if(fp)fp.onchange=()=>{const f=fp.files&&fp.files[0];if(!f)return;keepForm();const rd=new FileReader();rd.onload=()=>squareJpeg(rd.result,u=>{photo=u;draw();});rd.readAsDataURL(f);};
+  const fpd=$("#fPhotoDel");if(fpd)fpd.onclick=()=>{keepForm();photo="";draw();};
   const rt=$("#rToggle");if(rt)rt.onclick=()=>{keepForm();rEditing=!rEditing;draw();};
   const svg=$("#rEdit");if(svg&&rEditing){let ax=-1;
     const loc=e=>{const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return [vb.x+(e.clientX-r.left)/r.width*vb.width,vb.y+(e.clientY-r.top)/r.height*vb.height];};
@@ -896,10 +905,11 @@ function openEdit(m){
     if(by)setMe(by);
     try{await db.doc("members/"+m.id).delete();addLog({kind:"delete",memberId:m.id,name:orig.name});attend.delete(m.id);saveAttend();closeSheet();toast("삭제했습니다");}catch(e){dbErr(e);}};
   $("#editForm").onsubmit=async e=>{e.preventDefault();const name=$("#fName").value.trim();if(!name){toast("이름을 입력해 주세요");return;}
-    const body={name,...v,tall,score:avg(),pos,pos2,posSet:posTouched,posSet2:posTouched,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
+    const body={name,...v,tall,photo,score:avg(),pos,pos2,posSet:posTouched,posSet2:posTouched,active:$("#fAct").checked,injured:$("#fInj").checked,foot,adj:m.adj||0};
     if(!by){toast("누가 수정하는지 운영진 이름을 골라 주세요");return;}setMe(by);
     const ch={};
     if(!isNew){for(const [k] of AREAS)if(orig[k]!==body[k])ch[k]=[orig[k],body[k]];
+      if((m.photo||"")!==photo)ch.photo=[m.photo?1:0,photo?1:0];
       if(orig.pos!==body.pos)ch.pos=[orig.pos,body.pos];if(orig.pos2!==pos2.join(","))ch.pos2=[orig.pos2,pos2.join(",")];if(orig.injured!==body.injured)ch.injured=[orig.injured,body.injured];if(orig.foot!==body.foot)ch.foot=[orig.foot,body.foot];if(orig.tall!==body.tall)ch.tall=[orig.tall,body.tall];if(orig.active!==body.active)ch.active=[orig.active,body.active];if(orig.name!==body.name)ch.name=[orig.name,body.name];}
     try{if(isNew)await db.collection("members").add(body);else await db.doc("members/"+m.id).update(body);if(!isNew)lastEdited=m.id;
       if(isNew)addLog({kind:"add",name:body.name,changes:Object.fromEntries(AREAS.map(([k])=>[k,[null,body[k]]]))});
@@ -1058,6 +1068,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.sort){memberSort=b.dataset.sort;memberOrder=null;lastEdited=null;renderMembers();return;}
   if(b.id==="resort"){memberOrder=null;lastEdited=null;renderMembers();return;}
   if(b.id==="resetAdj")return resetAll(b);
+  if(b.id==="faceMap")return openFaceMap();
   if(b.id==="undoAllRes"){b.disabled=true;b.textContent="되돌리는 중…";undoAllResults();return;}
   if(b.dataset.addgame){const mt=matches.find(x=>x.id===b.dataset.addgame),f=document.querySelector(`[data-form="${mt.id}"]`);
     const [sa,sb]=f.querySelectorAll("select"),[ia,ib]=f.querySelectorAll("input");const a=+sa.value,bb=+sb.value;
@@ -1290,6 +1301,34 @@ function radarEdit(v,orig,pos,editing){
     ${editing?`<div class="small" style="text-align:center;color:var(--accent);padding-bottom:6px">꼭짓점을 끌거나 축 위를 눌러 조절 · 0.5 단위${changed?" · 점선은 수정 전":""}</div>`:changed?`<div class="small muted" style="text-align:center;padding-bottom:6px">점선은 수정 전 능력치</div>`:""}</div>
     <div class="balance" id="rSum" style="font-size:.9rem">${rSum(v,pos)}</div>`;
 }
+/* ---------- 얼굴 사진 한꺼번에 연결 (잘라 둔 얼굴 파일 .json 또는 사진 여러 장) ---------- */
+let facePool=[];
+function openFaceMap(){
+  const pick={};
+  const draw=()=>{
+    const used=new Set(Object.values(pick).filter(Boolean)),sorted=[...members].sort((a,b)=>a.name.localeCompare(b.name,"ko"));
+    $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet" id="fmSheet">
+      <div class="row spread"><h2>얼굴 사진 연결</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
+      <p class="small muted" style="margin:0">잘라 둔 얼굴 파일(.json)이나 얼굴 사진 여러 장을 올린 뒤, 사진마다 누구인지 골라 주세요. 사진은 운영진만 볼 수 있어요.</p>
+      <div class="row" style="gap:6px"><label class="btn small primary" style="cursor:pointer">얼굴 파일·사진 불러오기<input type="file" id="fmIn" accept=".json,application/json,image/*" multiple hidden></label>${facePool.length?`<span class="small muted num">${facePool.length}장 · 연결 ${used.size}명</span>`:""}</div>
+      ${facePool.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">${facePool.map((f,i)=>`<div class="panel" style="padding:8px;display:flex;flex-direction:column;gap:6px;align-items:center">
+        <div style="position:relative"><img src="${f.img}" alt="얼굴 ${i+1}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;${pick[i]?"box-shadow:0 0 0 3px var(--accent)":""}"><span class="num small" style="position:absolute;left:-4px;top:-4px;background:var(--ink);color:var(--bg);border-radius:999px;padding:1px 7px">${i+1}</span></div>
+        <select data-fm="${i}" style="padding:6px 8px;font-size:.85rem"><option value="">누구인가요?</option>${sorted.map(m=>`<option value="${m.id}" ${pick[i]===m.id?"selected":""} ${used.has(m.id)&&pick[i]!==m.id?"disabled":""}>${esc(m.name)}${m.photo?" · 사진 있음":""}</option>`).join("")}</select></div>`).join("")}</div>
+        <button class="btn primary big" id="fmSave" ${used.size?"":"disabled"}>${used.size}명 사진 저장</button>`:""}
+    </div></div>`;
+    $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
+    document.querySelectorAll("[data-fm]").forEach(sel=>sel.onchange=()=>{pick[+sel.dataset.fm]=sel.value;draw();});
+    $("#fmIn").onchange=async e=>{const fs=[...(e.target.files||[])];
+      for(const f of fs){
+        if(/json/.test(f.type)||/\.json$/i.test(f.name)){try{const d=JSON.parse(await f.text());(d.faces||[]).forEach(x=>x&&x.img&&facePool.push({img:x.img}));}catch(_){toast("얼굴 파일을 읽지 못했어요");}}
+        else await new Promise(res=>{const rd=new FileReader();rd.onload=()=>squareJpeg(rd.result,u=>{facePool.push({img:u});res();});rd.readAsDataURL(f);});
+      }draw();};
+    const sv=$("#fmSave");if(sv)sv.onclick=async()=>{sv.disabled=true;let n=0;
+      try{for(const [i,id] of Object.entries(pick)){if(!id)continue;await db.doc("members/"+id).update({photo:facePool[+i].img});n++;}
+        addLog({kind:"photo",count:n});facePool=facePool.filter((_,i)=>!pick[i]);closeSheet();toast(`${n}명 사진을 저장했어요`);}catch(err){dbErr(err);sv.disabled=false;}};
+  };
+  draw();
+}
 /* ---------- 회원 티어 탭 위쪽 공통 선수 카드 ---------- */
 function radarView(v,uid){
   const R=RE,bands=[5,4,3,2,1].map((lv,n)=>`<polygon points="${lvPoly(lv)}" fill="var(--${n%2?"surface":"sunk"})" stroke="var(--line)" stroke-width="${lv===5?1.2:.6}"/>`).join("");
@@ -1306,7 +1345,7 @@ function playerCard(list){
   return `<div class="pcard" aria-live="polite">
     <div>${radarView(m,"c")}</div>
     <div class="pinfo">
-      <div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span>${badges(m)}</div>
+      ${m.photo?`<div style="display:flex;align-items:center;gap:10px">${avatar(m,58)}<div style="min-width:0"><div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span></div>${badges(m)}</div></div>`:`<div class="pname">${tierHtml(m.score)}<span>${esc(m.name)}</span>${badges(m)}</div>`}
       <div class="pmeta">${tierName(m.score)} · <b style="color:var(--ink)">${POS[m.pos]}</b>${m.pos2&&m.pos2.length?" ("+m.pos2.map(x=>POS[x]).join("·")+" 가능)":""}${m.foot?" · "+FOOT[m.foot]:""}${m.injured?" · 부상":""}${m.unset&&m.unset.length?`<br><span style="color:var(--warn)">● ${m.unset.length}개 항목 미입력</span>`:""}</div>
       <div class="pscore"><b>${eff(m).toFixed(1)}</b><span class="small muted num">종합 ${m.score.toFixed(2)}${m.injured?" · 부상 −0.5":""}</span></div>
       <button class="btn small primary" data-edit="${m.id}" style="align-self:flex-start">수정</button>
@@ -1458,6 +1497,7 @@ function logLine(l){
   const who=`<b>${esc(l.by||"이름 없음")}</b>`,nm=`<b>${esc(l.name||"")}</b>`;
   if(l.kind==="edit"){
     const c=l.changes||{},parts=[];
+    if(c.photo)parts.push(c.photo[1]?"사진 등록":"사진 삭제");
     if(c.tall)parts.push(`장신 ${c.tall[0]?"예":"아니오"}→${c.tall[1]?"예":"아니오"}`);
     for(const k of ["sht","dri","pas","atk","tec","def","sta","phy","mid"])if(c[k])parts.push(`${AREA_KO[k]} ${c[k][0]}→<b class="${c[k][1]>c[k][0]?"up":"down"}">${c[k][1]}</b>`);
     if(c.pos)parts.push(`포지션 ${POS[c.pos[0]]||"-"}→${POS[c.pos[1]]||"-"}`);
@@ -1472,6 +1512,7 @@ function logLine(l){
   if(l.kind==="add")return `${who}님이 ${nm} 회원 추가 (${Object.entries(l.changes||{}).map(([k,v])=>(AREA_KO[k]||k)+" "+v[1]).join(", ")})`;
   if(l.kind==="delete")return `${who}님이 ${nm} 회원 삭제`;
   if(l.kind==="feedback")return `${who}님이 ${esc(l.matchDate?fmtDate(l.matchDate):"")} 개인 피드백: `+(l.items||[]).map(i=>`${esc(i.name)} <b class="${i.delta>0?"up":"down"}">${i.delta>0?"+":""}${i.delta.toFixed(1)}</b>`).join(", ");
+  if(l.kind==="photo")return `${who}님이 얼굴 사진 연결 (${l.count||0}명)`;
   if(l.kind==="undoRes")return `${who}님이 예전 경기 결과 보정 되돌리기 (${l.count||0}명)`;
   if(l.kind==="reset")return `${who}님이 보정치 전체 초기화 (${l.count||0}명)`;
   return `${who}님 변경`;
