@@ -281,8 +281,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792558674"></script>
-<script src="adapter.js?v=1792558674"></script>
+<script src="config.js?v=1792568886"></script>
+<script src="adapter.js?v=1792568886"></script>
 <script>
 (function(){
 "use strict";
@@ -387,8 +387,8 @@ function dbErr(e){if(e&&(e.code==="permission-denied"||e.code==="invalid_argumen
 
 /* ---------- team generation ---------- */
 function sizes(n,k){const b=Math.floor(n/k),r=n%k;return Array.from({length:k},(_,i)=>b+(i<r?1:0));}
-function defaultK(n){return Math.max(2,Math.round(n/6));}
-function kChoices(n){const out=[];for(let k=2;k<=6;k++){const s=sizes(n,k);if(s[s.length-1]>=4&&s[0]<=8)out.push(k);}return out;}
+function defaultK(n){return Math.max(2,Math.min(4,Math.round(n/6)));} // 팀 수는 2~4팀
+function kChoices(n){const out=[];for(let k=2;k<=4;k++){const s=sizes(n,k);if(s[s.length-1]>=4)out.push(k);}return out;}
 function stats(all){
   const team=all.filter(m=>!m.guest||m.rated),n=team.length;
   const e=team.map(eff).sort((x,y)=>y-x),sum=e.reduce((a,x)=>a+x,0);
