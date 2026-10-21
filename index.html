@@ -258,8 +258,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792554452"></script>
-<script src="adapter.js?v=1792554452"></script>
+<script src="config.js?v=1792555062"></script>
+<script src="adapter.js?v=1792555062"></script>
 <script>
 (function(){
 "use strict";
@@ -370,6 +370,7 @@ function stats(all){
     tall:team.filter(m=>m.tall).length,
     spec:Object.fromEntries(AREAS.map(([k])=>[k,team.filter(m=>m[k]>=4).length])),
     top2:(e[0]||0)+(e[1]||0),bot2:n>=2?e[n-1]+e[n-2]:(e[0]||0),
+    rf:n?team.reduce((a,m)=>a+formOf(m),0)/n:.5,
     left:team.filter(m=>m.foot==="L").length,inj:team.filter(m=>m.injured).length,
     T:team.reduce((o,m)=>{o[tierOf(m.score).k]++;return o;},{S:0,A:0,B:0,C:0,D:0}),
     P:team.reduce((o,m)=>{o[POS_KEYS.includes(m.pos)?m.pos:"MF"]++;return o;},{WG:0,MF:0,DF:0}),
@@ -398,6 +399,23 @@ function formFill(team,size){
   return {short:short.reduce((a,[,v])=>a+v,0),miss:short.map(([p,v])=>SLOT_NAME[p]+(v>1?" "+v:"")).join(", ")};
 }
 const pk=(a,b)=>a<b?a+"|"+b:b+"|"+a;
+// 최근 경기 결과를 팀 조합에만 씀: ① 최근 성적 지수(팀 승점 비율의 평균)를 팀마다 고르게
+// ② 같은 팀일 때 유독 잘 이기던 짝은 떨어뜨림. 경기 수가 적으면 50%(보통) 쪽으로 당겨서 운의 영향을 줄임
+let formMap=new Map(),chemMap=new Map();
+const FORM_DAYS=8,FORM_PRIOR=3;
+function buildForm(){
+  formMap=new Map();chemMap=new Map();
+  const ms=[...matches].filter(hasResult).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,FORM_DAYS),S=new Map(),P=new Map();
+  ms.forEach(mt=>{const rec=teamRecord(mt);mt.teams.forEach((t,i)=>{const r=rec[i],g=r.w+r.d+r.l;if(!g)return;const sc=(r.w+.5*r.d)/g,ids=t.ids||[];
+    ids.forEach(id=>{const x=S.get(id)||{s:0,n:0};x.s+=sc;x.n++;S.set(id,x);});
+    for(let a=0;a<ids.length;a++)for(let b=a+1;b<ids.length;b++){const k=pk(ids[a],ids[b]),x=P.get(k)||{s:0,n:0};x.s+=sc;x.n++;P.set(k,x);}});});
+  S.forEach((x,id)=>formMap.set(id,(x.s+FORM_PRIOR*.5)/(x.n+FORM_PRIOR)));
+  P.forEach((x,k)=>{if(x.n>=2){const v=(x.s+FORM_PRIOR*.5)/(x.n+FORM_PRIOR)-.5;if(v>0)chemMap.set(k,v);}});
+}
+const formOf=m=>m.guest?.5:(formMap.get(m.id)??.5);
+function chemCost(teams){if(!chemMap.size)return 0;let c=0;
+  for(const t of teams){const ids=t.filter(m=>!m.guest).map(m=>m.id);for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)c+=chemMap.get(pk(ids[i],ids[j]))||0;}
+  return c;}
 function buildPairW(){
   // 최근 3번의 확정 조합에서 같은 팀이었던 회원 쌍 (최근일수록 가중치 큼)
   pairW=new Map();const W=[1,.6,.3];
@@ -422,16 +440,19 @@ function lastOverlap(teams){ // 직전 경기와 그대로 겹치는 쌍 수
  * ① 필수 조건: 팀 인원(정해진 크기), 같은 팀 묶기 짝, 팀마다 사이드·중앙·수비 최소 1명씩 → 어기면 아주 큰 벌점
  *    대형(사이드 2·중앙 1·수비 2, 나머지 1명은 골키퍼 등 자유)을 못 채우는 자리는 자리마다 큰 벌점
  * ② 맞출 지표(중요한 순): 팀 전력 평균 > 에이스(상위 2명) > 약점(하위 2명) > 능력치 5가지 평균
- *    > 주특기 선수(항목 4점 이상) 분산 > 대형 자리 채우기·포지션 인원 > 티어 분포 > 장신·왼발 분산 > 지난 조합 겹침
+ *    > 최근 성적 지수(최근 8번 경기일의 팀 승점 비율) > 주특기 선수 분산 > 대형 자리 채우기·포지션 인원
+ *    > 잘 맞는 짝 떨어뜨리기 > 티어 분포 > 장신·왼발 분산 > 지난 조합 겹침
+ *    (경기 결과는 개인 능력치에는 절대 반영하지 않고, 팀을 나눌 때만 참고)
  *    각 지표는 오늘 참석자들의 실력 편차로 나눠 같은 기준(정규화)으로 비교하고,
  *    최대-최소가 아니라 "모든 팀이 전체 평균에서 벗어난 정도(제곱 평균)"로 계산
  * ③ 탐색: 여러 시작 조합 → 1:1 교환(가장 좋은 것) → 막히면 2:2 교환 → 반복
  */
-let CTX={sd:.6,sk:{sht:.6,dri:.6,pas:.6,def:.6,sta:.6}};
+let CTX={sd:.6,sk:{sht:.6,dri:.6,pas:.6,def:.6,sta:.6},fsd:.08};
 const sdOf=a=>{if(!a.length)return .6;const m=a.reduce((x,y)=>x+y,0)/a.length;return Math.max(.35,Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length));};
-function setCtx(players){CTX={sd:sdOf(players.map(eff)),sk:Object.fromEntries(AREAS.map(([k])=>[k,sdOf(players.map(p=>p[k]))]))};}
+function setCtx(players){const fs=players.map(formOf),fm=fs.reduce((a,b)=>a+b,0)/(fs.length||1);
+  CTX={sd:sdOf(players.map(eff)),sk:Object.fromEntries(AREAS.map(([k])=>[k,sdOf(players.map(p=>p[k]))])),fsd:Math.max(.05,Math.sqrt(fs.reduce((a,b)=>a+(b-fm)*(b-fm),0)/(fs.length||1)))};}
 function dev2(arr,scale){const m=arr.reduce((a,b)=>a+b,0)/arr.length;let s=0;for(const x of arr){const d=(x-m)/scale;s+=d*d;}return s/arr.length;}
-const BW={power:20,top:4,bot:5,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1,form:3,tier:.8,tall:.6,left:.5,overlap:.08};
+const BW={power:20,top:4,bot:5,stat:{sht:1.2,dri:1,pas:1.2,def:1.4,sta:1.6},spec:.5,pos:1,form:3,recent:4,chem:3,tier:.8,tall:.6,left:.5,overlap:.08};
 function coreDev(st){const k=st.length,ns=Math.max(1,st.reduce((a,s)=>a+(s.n-s.guest),0)/k),sd=CTX.sd;
   return {power:dev2(st.map(s=>s.avg),sd/Math.sqrt(ns)),top:dev2(st.map(s=>s.top2),sd),bot:dev2(st.map(s=>s.bot2),sd),ns};}
 function cost(teams){
@@ -443,6 +464,7 @@ function cost(teams){
   for(const t of ["S","A","B","C","D"])c+=BW.tier*(t==="S"||t==="A"?1.5:1)*dev2(st.map(s=>s.T[t]),1);
   for(const [a] of AREAS)c+=BW.spec*dev2(st.map(s=>s.spec[a]),1);
   c+=BW.tall*dev2(st.map(s=>s.tall),1)+BW.left*dev2(st.map(s=>s.left),1);
+  if(formMap.size)c+=BW.recent*dev2(st.map(s=>s.rf),CTX.fsd/Math.sqrt(cd.ns))+BW.chem*chemCost(teams);
   c+=500*st.reduce((a,s)=>a+s.min.short,0); // 필수: 팀마다 사이드·중앙·수비 1명씩
   return c+pairCost(teams)+overlap(teams)*BW.overlap;
 }
@@ -518,7 +540,7 @@ function generate(){
 }
 function generateNow(){
   radarHidden=new Set();
-  buildPairW();
+  buildPairW();buildForm();
   const rated=guests.filter(g=>g.rated).map(gNorm),unrated=guests.filter(g=>!g.rated);
   const players=[...attend].map(byId).filter(Boolean).concat(rated);
   const n=players.length+unrated.length,ch=kChoices(n);
@@ -587,7 +609,7 @@ function renderMake(){
     const wins=[];for(let i=0;i<st.length;i++)for(let j=i+1;j<st.length;j++){const pw=winProb(st[i].avg,st[j].avg);wins.push(`<span class="pill num">${i+1}팀 ${Math.round(pw*100)} : ${100-Math.round(pw*100)} ${j+1}팀</span>`);}
     h+=`<div class="row spread"><h2>추천 조합</h2>${options.length>1?`<div class="seg">${options.map((_,i)=>`<button data-opt="${i}" aria-pressed="${i===optIdx}">${i+1}안</button>`).join("")}</div>`:""}</div>
     <div class="balance" style="flex-wrap:wrap"><span class="dot" style="background:var(--${lv[0]})"></span><span>밸런스</span><b>${bs}점</b><span class="small muted">${lv[1]} · 전력 차 ${gap.toFixed(2)}</span>${(()=>{const lo=lastOverlap(o.teams);return lo===null?"":`<span class="small muted" style="margin-left:auto">지난 경기와 겹친 짝 <b class="num" style="font-size:.95rem">${lo}</b></span>`;})()}</div>
-    <div class="meta" style="padding:0;gap:4px"><span class="small muted" style="width:100%">예상 승률 (팀 평균 전력 기준)</span>${wins.join("")}</div>
+    <div class="meta" style="padding:0;gap:4px;display:flex;flex-wrap:wrap"><span class="small muted" style="width:100%">예상 승률 (팀 평균 전력 기준)</span>${wins.join("")}</div>
     ${radarHtml(o.teams.map(stats))}
     ${reasonHtml(o,st)}
     <p class="small muted" style="margin:0">선수 두 명을 차례로 누르면 서로 팀을 바꿉니다.</p>
@@ -595,7 +617,7 @@ function renderMake(){
       <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
       <div class="meta">${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
       <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.min.short?`<span class="pill" style="color:var(--bad)">필수 포지션 부족: ${s.min.miss}</span>`:s.form.short?`<span class="pill" style="color:var(--warn)">사이드·중앙·수비 ✓ · 2-1-2엔 ${s.form.miss} 부족</span>`:`<span class="pill" style="color:var(--good)">2-1-2 대형 ✓</span>`}</div>
-      <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}</div>
+      <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}${formMap.size?`<span class="pill num">최근 성적 ${Math.round(s.rf*100)}</span>`:""}</div>
       <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
     <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
   }
@@ -670,11 +692,12 @@ function renderRecords(){
     const teamsH=mt.teams.map((t,i)=>`<div><span class="bib" style="background:${tn(i)[1]};width:10px;height:13px"></span><b>${tn(i)[0]}</b><span class="names">${t.names.map(esc).join(", ")}</span></div>`).join("");
     const games=playedGames(mt).map((g,gi)=>`<div class="game"><span class="bib" style="background:${tn(g.a)[1]};width:10px;height:13px"></span>${tn(g.a)[0]} <span class="num">${g.ga} : ${g.gb}</span> ${tn(g.b)[0]}<span class="bib" style="background:${tn(g.b)[1]};width:10px;height:13px"></span></div>`).join("");
     const opts=mt.teams.map((_,i)=>`<option value="${i}">${tn(i)[0]}</option>`).join("");
-    return `<article class="match"><div class="row spread"><b>${fmtDate(mt.date)}</b><span class="badge ${mt.applied?"done":"wait"}">${mt.applied?"점수 반영됨":"반영 전"}</span></div>
+    return `<article class="match"><div class="row spread"><b>${fmtDate(mt.date)}</b><span class="badge ${mt.applied?"wait":hasResult(mt)?"done":"wait"}">${mt.applied?"점수 반영됨(예전)":hasResult(mt)?"결과 입력됨":"결과 전"}</span></div>
     <div class="tlist">${teamsH}</div>
     ${wdlInputHtml(mt)}
+    ${hasResult(mt)&&!mt.applied?`<span class="small muted">결과는 개인 능력치를 바꾸지 않고, 다음 팀을 나눌 때 "최근 성적"으로만 참고해요.</span>`:""}
     ${standHtml(mt,true)}
-    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn primary small" data-apply="${mt.id}" ${hasResult(mt)&&!wdlCheck(teamRecord(mt)).length?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
+    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:""}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
   }).join("");
 }
 let pendingDelete=null;
@@ -722,14 +745,14 @@ function seasonHtml(){
   // 밸런스 검증: 전력이 높았던 팀이 실제로 승점이 더 많았던 비율
   let agree=0,tot=0;D.ms.filter(hasResult).forEach(mt=>{const {teams}=matchTeams(mt),av=teams.map(t=>stats(t).avg),st=standings(mt),pts=[];st.forEach(x=>pts[x.i]=x.pts);
     for(let i=0;i<av.length;i++)for(let j=i+1;j<av.length;j++){if(Math.abs(av[i]-av[j])<.03||pts[i]===pts[j])continue;tot++;if((av[i]>av[j])===(pts[i]>pts[j]))agree++;}});
-  const cols=[["att","출석"],["play","출전"],["wdl","승·무·패"],["rate","승률"],["ppg","경기당 승점"],["delta","점수 변화"]];
+  const cols=[["att","출석"],["play","출전"],["wdl","승·무·패"],["rate","승률"],["ppg","경기당 승점"]];
   const key={att:x=>x.att,play:x=>x.play,wdl:x=>x.w,rate:x=>x.play>=minPlay?x.rate:-1,ppg:x=>x.play>=minPlay?x.ppg:-1,delta:x=>x.delta};
   const sorted=[...rows].sort((x,y)=>key[seasonSort](y)-key[seasonSort](x)||y.att-x.att||x.m.name.localeCompare(y.m.name,"ko"));
   return per+`<div class="small muted">${D.range[0]==="0000-00-00"?"전체 기간":fmtDate(D.range[0])+" ~ "+fmtDate(D.range[1])} · 경기일 ${D.days}일 · 결과 입력 ${D.ms.filter(hasResult).length}일</div>
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${aw.map(([t,b2,f])=>`<div class="panel" style="padding:12px;gap:2px;display:flex;flex-direction:column"><span class="label">🏆 ${t}</span>${b2?`<b style="font-size:1rem;word-break:keep-all">${b2.names.slice(0,3).map(esc).join(", ")}${b2.names.length>3?` 외 ${b2.names.length-3}명`:""}</b><span class="small muted num">${f(b2.v)}</span>`:`<span class="small muted">아직 없음</span>`}</div>`).join("")}</div>
   <p class="small muted" style="margin:0">승률·승점 순위는 ${minPlay}일 이상 뛴 회원만 들어가요. 팀 성적은 그 팀 선수 모두에게 똑같이 기록돼요.</p>
-  <div class="panel" style="padding:8px 4px"><div style="overflow-x:auto"><table class="stand num" style="min-width:470px"><tr><th style="text-align:left;padding-left:8px">회원</th>${cols.map(([k,l])=>`<th><button class="btn ghost small" data-ssort="${k}" style="padding:2px 4px;font-size:.74rem;${seasonSort===k?"color:var(--accent);font-weight:700":""}">${l}${seasonSort===k?" ▼":""}</button></th>`).join("")}</tr>
-    ${sorted.map(x=>`<tr style="${x.play<minPlay?"color:var(--muted)":""}"><td style="text-align:left;padding-left:8px;white-space:nowrap">${esc(x.m.name)}</td><td>${x.att}/${D.days}</td><td>${x.play}일</td><td>${x.w}-${x.d}-${x.l}</td><td>${x.g?Math.round(x.rate*100)+"%":"-"}</td><td>${x.g?x.ppg.toFixed(2):"-"}</td><td style="color:var(--${x.delta>0?"good":x.delta<0?"bad":"muted"})">${x.delta>0?"+":""}${x.delta?r2(x.delta).toFixed(1):"0"}</td></tr>`).join("")}</table></div></div>
+  <div class="panel" style="padding:8px 4px"><div style="overflow-x:auto"><table class="stand num" style="min-width:400px"><tr><th style="text-align:left;padding-left:8px">회원</th>${cols.map(([k,l])=>`<th><button class="btn ghost small" data-ssort="${k}" style="padding:2px 4px;font-size:.74rem;${seasonSort===k?"color:var(--accent);font-weight:700":""}">${l}${seasonSort===k?" ▼":""}</button></th>`).join("")}</tr>
+    ${sorted.map(x=>`<tr style="${x.play<minPlay?"color:var(--muted)":""}"><td style="text-align:left;padding-left:8px;white-space:nowrap">${esc(x.m.name)}</td><td>${x.att}/${D.days}</td><td>${x.play}일</td><td>${x.w}-${x.d}-${x.l}</td><td>${x.g?Math.round(x.rate*100)+"%":"-"}</td><td>${x.g?x.ppg.toFixed(2):"-"}</td></tr>`).join("")}</table></div></div>
   ${tot?`<div class="panel row spread"><div><div class="label">밸런스 검증</div><b class="num" style="font-size:1.2rem">${Math.round(agree/tot*100)}%</b> <span class="small muted">전력이 높았던 팀이 실제로 앞선 비율</span></div><span class="small muted" style="max-width:45%">50%에 가까울수록 팀이 공평했다는 뜻이에요</span></div>`:""}`;
 }
 // 회원 수정 화면용 개인 시즌 카드
@@ -742,6 +765,7 @@ function memberSeasonHtml(id){
   const pals=[...P.entries()].filter(([o,q])=>q.n>=2&&q.g&&byId(o)).map(([o,q])=>({nm:byId(o).name,r:q.w/q.g,n:q.n})).sort((a,b)=>b.r-a.r||b.n-a.n).slice(0,3);
   return `<div class="panel" style="display:flex;flex-direction:column;gap:6px;padding:12px"><div class="row spread"><b style="font-size:.9rem">${PERIODS[seasonP]} 시즌 기록</b><span class="small muted num">출석 ${x.att}/${D.days}</span></div>
     <div class="num" style="font-size:.95rem"><b>${x.w}승 ${x.d}무 ${x.l}패</b> · 승률 ${x.g?Math.round(x.rate*100):0}% · 경기당 ${x.ppg.toFixed(2)}점</div>
+    <div class="small muted">팀 조합용 최근 성적 지수 <b class="num">${(()=>{buildForm();return Math.round(formOf({id})*100);})()}</b> (보통 50 · 개인 능력치에는 반영 안 함)</div>
     ${chips?`<div class="meta" style="padding:0;gap:4px;display:flex;flex-wrap:wrap">${chips}</div>`:""}
     ${pals.length?`<div class="small">잘 맞는 짝: ${pals.map(p=>`<b>${esc(p.nm)}</b> <span class="muted num">${Math.round(p.r*100)}% (${p.n}일)</span>`).join(" · ")}</div>`:""}</div>`;
 }
@@ -1129,7 +1153,7 @@ function standHtml(mt,compact){
 function teamTag(i){return `<span class="tn"><span class="bib" style="background:${BIBS[i%6][1]};width:10px;height:13px"></span>${BIBS[i%6][0]}</span>`;}
 function wdlInputHtml(mt){
   const rec=teamRecord(mt),errs=wdlCheck(rec),lb={w:"승",d:"무",l:"패"};
-  if(mt.applied)return "";
+  if(mt.applied)return `<span class="small muted">예전 방식으로 점수에 반영된 기록이에요. "반영 취소"를 누르면 보정이 없어지고 승·무·패를 다시 고칠 수 있어요.</span>`;
   const cell=(i,k,val)=>`<div class="wc"><button data-wdl="${mt.id}:${i}:${k}:-1" ${!val?"disabled":""} aria-label="${BIBS[i%6][0]} ${lb[k]} 빼기">−</button><b class="num">${val}</b><button data-wdl="${mt.id}:${i}:${k}:1" aria-label="${BIBS[i%6][0]} ${lb[k]} 더하기">+</button></div>`;
   return `<div class="wgrid"><span class="label">결과</span><span class="label">승</span><span class="label">무</span><span class="label">패</span>
     ${rec.map((r,i)=>`${teamTag(i)}${cell(i,"w",r.w)}${cell(i,"d",r.d)}${cell(i,"l",r.l)}`).join("")}</div>
@@ -1293,6 +1317,7 @@ function reasonHtml(o,st){
     ...AREAS.map(([kk,l])=>[l+" 평균",st.map(s=>s[kk]),1,.25,.5]),
     ["주특기 (4점↑) 합",st.map(s=>AREAS.reduce((a,[kk])=>a+s.spec[kk],0)),0,2,4],
     ...POS_KEYS.map(p=>[POS[p]+" 인원",st.map(s=>s.P[p]),0,1,2]),
+    ["최근 성적 지수",st.map(s=>s.rf*100),0,4,8],
     ["장신",st.map(s=>s.tall),0,1,2],
     ["왼발",st.map(s=>s.left),0,1,2]];
   const th=`<tr style="color:var(--muted)"><td></td>${st.map((_,i)=>`<td style="padding:4px 6px;text-align:right">${i+1}팀</td>`).join("")}<td style="padding:4px 0 4px 8px;text-align:right">차이</td></tr>`;
@@ -1307,7 +1332,7 @@ function reasonHtml(o,st){
       <div><div class="label" style="margin-bottom:4px">반드시 지키는 조건</div><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px">${must}</ul></div>
       <div><div class="label" style="margin-bottom:4px">팀별 비교 <span style="font-weight:400">(● 초록 고름 · 노랑 괜찮음 · 빨강 차이 큼)</span></div>
         <div style="overflow-x:auto"><table class="num" style="border-collapse:collapse;width:100%;font-size:.8rem">${th}${tr}</table></div></div>
-      <p class="small muted" style="margin:0">맞추는 순서: 최소 포지션(사이드·중앙·수비 1명씩, 필수) → 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 주특기 선수 분산 → 대형 자리 채우기·포지션 인원 → 티어 분포 → 장신·왼발 분산${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
+      <p class="small muted" style="margin:0">맞추는 순서: 최소 포지션(사이드·중앙·수비 1명씩, 필수) → 팀 전력 → 에이스·약점 쏠림 → 능력치 5가지 → 최근 성적 지수 → 주특기 선수 분산 → 대형 자리 채우기·포지션 인원 → 잘 맞는 짝 떨어뜨리기 → 티어 분포 → 장신·왼발 분산${formMap.size?"":" (경기 결과가 쌓이면 최근 성적도 반영돼요)"}${lo!==null?` · 지난 경기와 겹친 짝 ${lo}쌍`:""}</p>
     </div></details>`;
 }
 /* ---------- 팀 능력치 레이더 ---------- */
