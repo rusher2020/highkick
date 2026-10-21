@@ -59,7 +59,7 @@ button{cursor:pointer}
 
 /* bottom tabs */
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
-.tabs .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tabs .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr)}
 .tabs button{background:none;border:0;padding:10px 4px 12px;font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
 .tabs button svg{width:22px;height:22px}
 .tabs button[aria-selected="true"]{color:var(--accent);font-weight:700}
@@ -177,6 +177,19 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 .gcard .vs{font:700 1.2rem var(--f-num);color:var(--muted)}
 .gcard.done{grid-template-columns:auto 1fr auto 1fr auto;padding:8px 10px}
 .stand{border-collapse:collapse;width:100%;font-size:.84rem}
+.wgrid{display:grid;grid-template-columns:max-content repeat(3,minmax(0,1fr));gap:6px 4px;align-items:center}
+.wgrid>.label{text-align:center}.wgrid .tn{white-space:nowrap}.wgrid>.label:first-child{text-align:left}
+.wc{display:flex;align-items:center;justify-content:space-between;background:var(--sunk);border-radius:10px;padding:4px}
+.wc b{font-size:1.2rem;min-width:18px;text-align:center}
+.wc button{width:28px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:1rem;color:var(--ink);padding:0}
+.wc button:disabled{opacity:.35}
+.wrow{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.wset{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.wdl{display:flex;align-items:center;justify-content:space-between;gap:4px;background:var(--sunk);border-radius:10px;padding:6px}
+.wdl .lb{font-size:.8rem;color:var(--muted);font-weight:700;padding-left:4px}
+.wdl b{font-size:1.35rem;min-width:22px;text-align:center}
+.wdl button{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:1.1rem;color:var(--ink)}
+.wdl button:disabled{opacity:.35}
 .stand td,.stand th{padding:6px 4px;text-align:center}
 .stand th{color:var(--muted);font-weight:600;font-size:.76rem}
 .stand tr+tr td{border-top:1px solid var(--line)}
@@ -229,13 +242,11 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <main class="wrap">
   <section class="view" id="v-make"></section>
   <section class="view" id="v-members" hidden></section>
-  <section class="view" id="v-play" hidden></section>
   <section class="view" id="v-records" hidden></section>
 </main>
 
 <nav class="tabs" aria-label="메뉴"><div class="in" role="tablist">
   <button role="tab" data-tab="make" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7l4 3-1.5 4.5h-5L8 10z"/></svg>팀 짜기</button>
-  <button role="tab" data-tab="play" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14M3 10h3v4H3M21 10h-3v4h3"/><circle cx="12" cy="12" r="2"/></svg>경기 진행</button>
   <button role="tab" data-tab="members" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>회원 티어</button>
   <button role="tab" data-tab="records" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>경기 기록</button>
 </div></nav>
@@ -247,8 +258,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792477739"></script>
-<script src="adapter.js?v=1792477739"></script>
+<script src="config.js?v=1792554452"></script>
+<script src="adapter.js?v=1792554452"></script>
 <script>
 (function(){
 "use strict";
@@ -647,12 +658,13 @@ function renderRecords(){
   const v=$("#v-records");
   if(!ready){v.innerHTML=`<div class="empty">불러오는 중…</div>`;return;}
   if(!db){v.innerHTML=`<div class="notice">저장소에 연결할 수 없습니다.</div>`;return;}
-  const seg=`<div class="row spread"><h2>기록</h2><div class="seg"><button data-rv="matches" aria-pressed="${recView==="matches"}">경기 기록 <span class="num muted">${matches.length}</span></button><button data-rv="weeks" aria-pressed="${recView==="weeks"}">주간 출석 <span class="num muted">${weeks.length}</span></button></div></div>`;
+  const seg=`<div class="row spread"><h2>기록</h2><div class="seg"><button data-rv="matches" aria-pressed="${recView==="matches"}">경기 기록 <span class="num muted">${matches.length}</span></button><button data-rv="weeks" aria-pressed="${recView==="weeks"}">주간 출석</button><button data-rv="season" aria-pressed="${recView==="season"}">시즌</button></div></div>`;
+  if(recView==="season"){v.innerHTML=seg+seasonHtml();return;}
   if(recView==="weeks"){v.innerHTML=seg+weeksHtml();return;}
   if(!matches.length){v.innerHTML=seg+`<div class="panel empty"><strong>아직 기록이 없어요</strong>팀 짜기에서 조합을 확정하면 여기에 날짜별로 쌓이고, 경기 스코어를 입력해 점수에 반영할 수 있습니다.</div>`;return;}
   const list=[...matches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  const allGames=matches.flatMap(playedGames),close=allGames.filter(g=>Math.abs(g.ga-g.gb)<=2).length;
-  const summary=allGames.length?`<div class="panel row spread"><div><div class="label">밸런스 검증</div><b class="num" style="font-size:1.3rem">${Math.round(close/allGames.length*100)}%</b> <span class="small muted">경기가 2골 차 이내</span></div><span class="small muted num">총 ${allGames.length}경기 · 접전 ${close}</span></div>`:"";
+  const doneDays=matches.filter(hasResult).length;
+  const summary=matches.length?`<div class="panel row spread"><div><div class="label">결과 입력</div><b class="num" style="font-size:1.3rem">${doneDays}</b><span class="small muted"> / ${matches.length}일</span></div><span class="small muted num">총 ${matches.reduce((a,mt)=>a+gamesOfDay(mt),0)}경기</span></div>`:"";
   v.innerHTML=seg+summary+list.map(mt=>{
     const tn=i=>BIBS[i%6];
     const teamsH=mt.teams.map((t,i)=>`<div><span class="bib" style="background:${tn(i)[1]};width:10px;height:13px"></span><b>${tn(i)[0]}</b><span class="names">${t.names.map(esc).join(", ")}</span></div>`).join("");
@@ -660,9 +672,9 @@ function renderRecords(){
     const opts=mt.teams.map((_,i)=>`<option value="${i}">${tn(i)[0]}</option>`).join("");
     return `<article class="match"><div class="row spread"><b>${fmtDate(mt.date)}</b><span class="badge ${mt.applied?"done":"wait"}">${mt.applied?"점수 반영됨":"반영 전"}</span></div>
     <div class="tlist">${teamsH}</div>
-    <div class="games">${games||`<span class="small muted">아직 끝난 경기가 없어요. 경기 진행 탭에서 스코어를 입력해 주세요.</span>`}</div>
+    ${wdlInputHtml(mt)}
     ${standHtml(mt,true)}
-    <div class="row"><button class="btn small" data-play="${mt.id}">경기 진행</button>${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn primary small" data-apply="${mt.id}" ${playedGames(mt).length?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
+    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn primary small" data-apply="${mt.id}" ${hasResult(mt)&&!wdlCheck(teamRecord(mt)).length?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-fb="${mt.id}">개인 피드백${(mt.fbList||[]).length?` <span class="num" style="color:var(--accent)">${mt.fbList.length}</span>`:""}</button><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
   }).join("");
 }
 let pendingDelete=null;
@@ -679,9 +691,59 @@ function weeksHtml(){
   list.map(w=>{const mt=matches.find(m=>m.date===w.date),st=mt?standings(mt).filter(x=>x.p):[];
     const names=[...(w.ids||[]).map(id=>(byId(id)||{}).name).filter(Boolean),...(w.names||[]).filter(n=>!(w.ids||[]).some(id=>(byId(id)||{}).name===n)).map(n=>n+"(탈퇴)")];
     return `<article class="match"><div class="row spread"><b>${fmtDate(w.date)}</b><span class="small num">출석 <b>${w.count||0}</b>명${(w.guests||[]).length?` · 용병 ${(w.guests||[]).length}`:""}</span></div>
-    <div class="small muted">${mt?(st.length?`1위 ${BIBS[st[0].i%6][0]} (승점 ${st[0].pts}) · ${playedGames(mt).length}경기`:"팀 확정 · 경기 결과 없음"):"팀 확정 전"}${w.by?` · 마지막 수정 ${esc(w.by)}`:""}</div>
+    <div class="small muted">${mt?(st.length?`1위 ${BIBS[st[0].i%6][0]} (승점 ${st[0].pts}) · ${gamesOfDay(mt)}경기`:"팀 확정 · 경기 결과 없음"):"팀 확정 전"}${w.by?` · 마지막 수정 ${esc(w.by)}`:""}</div>
     <details><summary style="cursor:pointer;font-size:.86rem">명단 보기</summary><div class="small" style="margin-top:6px;line-height:1.7">${names.map(esc).join(", ")}${(w.guests||[]).length?`<br><span class="muted">용병: ${(w.guests||[]).map(esc).join(", ")}</span>`:""}</div></details>
-    <div class="row"><button class="btn small" data-wload="${w.id}">이 출석 불러오기</button>${mt?`<button class="btn small" data-play="${mt.id}">경기 보기</button>`:""}<button class="btn ghost small danger" data-wdel="${w.id}" style="margin-left:auto">${pendingWeek===w.id?"한 번 더 누르면 삭제":"삭제"}</button></div></article>`;}).join("");
+    <div class="row"><button class="btn small" data-wload="${w.id}">이 출석 불러오기</button><button class="btn ghost small danger" data-wdel="${w.id}" style="margin-left:auto">${pendingWeek===w.id?"한 번 더 누르면 삭제":"삭제"}</button></div></article>`;}).join("");
+}
+/* ---------- 시즌 기록: 팀 성적을 그 팀 선수 모두가 그대로 받음 ---------- */
+let seasonP="q",seasonSort="rate";
+const PERIODS={m:"이번 달",q:"이번 분기",h:"이번 반기",y:"올해",all:"전체"};
+function periodRange(pp){const t=new Date(),y=t.getFullYear(),m=t.getMonth(),f=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  if(pp==="m")return [f(new Date(y,m,1)),f(new Date(y,m+1,0))];
+  if(pp==="q"){const q=Math.floor(m/3)*3;return [f(new Date(y,q,1)),f(new Date(y,q+3,0))];}
+  if(pp==="h"){const q=m<6?0:6;return [f(new Date(y,q,1)),f(new Date(y,q+6,0))];}
+  if(pp==="y")return [y+"-01-01",y+"-12-31"];return ["0000-00-00","9999-99-99"];}
+function seasonData(pp){
+  const [a,b]=periodRange(pp),ms=matches.filter(mt=>mt.date>=a&&mt.date<=b),ws=weeks.filter(w=>w.date>=a&&w.date<=b);
+  const days=new Set([...ms.map(m=>m.date),...ws.map(w=>w.date)]),S=new Map();
+  const get=id=>{if(!S.has(id))S.set(id,{id,att:new Set(),play:0,w:0,d:0,l:0,delta:0,hist:[]});return S.get(id);};
+  ws.forEach(w=>(w.ids||[]).forEach(id=>get(id).att.add(w.date)));
+  [...ms].sort((x,y)=>x.date<y.date?-1:1).forEach(mt=>{const rec=teamRecord(mt);if(!rec.some(r=>r.w+r.d+r.l)){mt.teams.forEach(t=>(t.ids||[]).forEach(id=>get(id).att.add(mt.date)));return;}
+    mt.teams.forEach((t,i)=>(t.ids||[]).forEach(id=>{const x=get(id),r=rec[i];x.att.add(mt.date);x.play++;x.w+=r.w;x.d+=r.d;x.l+=r.l;x.delta+=(mt.deltas||{})[id]||0;x.hist.push({date:mt.date,...r,team:i,mid:mt.id});}));});
+  const rows=[...S.values()].map(x=>{const g=x.w+x.d+x.l;return {...x,att:x.att.size,g,rate:g?x.w/g:0,ppg:g?(x.w*3+x.d)/g:0,m:byId(x.id)};}).filter(x=>x.m);
+  return {range:[a,b],ms,days:days.size,rows,minPlay:Math.max(1,Math.min(3,Math.ceil(ms.filter(hasResult).length/2)))};
+}
+function seasonHtml(){
+  const D=seasonData(seasonP),{rows,minPlay}=D,ok=rows.filter(x=>x.play>=minPlay);
+  const per=`<div class="seg" style="flex-wrap:wrap">${Object.entries(PERIODS).map(([k,l])=>`<button data-sper="${k}" aria-pressed="${seasonP===k}">${l}</button>`).join("")}</div>`;
+  if(!rows.length)return per+`<div class="panel empty"><strong>${PERIODS[seasonP]} 기록이 없어요</strong>출석을 체크하고 경기 결과를 넣으면 자동으로 쌓여요.</div>`;
+  const best=(arr,f)=>{if(!arr.length)return null;const mx=Math.max(...arr.map(f));if(!(mx>0))return null;return {v:mx,names:arr.filter(x=>f(x)===mx).map(x=>x.m.name)};};
+  const aw=[["개근상",best(rows,x=>x.att),v=>`${v}회 출석`],["승률왕",best(ok,x=>x.rate),v=>`승률 ${Math.round(v*100)}%`],["승점왕",best(ok,x=>x.ppg),v=>`경기당 ${v.toFixed(2)}점`],["최다승",best(rows,x=>x.w),v=>`${v}승`]];
+  // 밸런스 검증: 전력이 높았던 팀이 실제로 승점이 더 많았던 비율
+  let agree=0,tot=0;D.ms.filter(hasResult).forEach(mt=>{const {teams}=matchTeams(mt),av=teams.map(t=>stats(t).avg),st=standings(mt),pts=[];st.forEach(x=>pts[x.i]=x.pts);
+    for(let i=0;i<av.length;i++)for(let j=i+1;j<av.length;j++){if(Math.abs(av[i]-av[j])<.03||pts[i]===pts[j])continue;tot++;if((av[i]>av[j])===(pts[i]>pts[j]))agree++;}});
+  const cols=[["att","출석"],["play","출전"],["wdl","승·무·패"],["rate","승률"],["ppg","경기당 승점"],["delta","점수 변화"]];
+  const key={att:x=>x.att,play:x=>x.play,wdl:x=>x.w,rate:x=>x.play>=minPlay?x.rate:-1,ppg:x=>x.play>=minPlay?x.ppg:-1,delta:x=>x.delta};
+  const sorted=[...rows].sort((x,y)=>key[seasonSort](y)-key[seasonSort](x)||y.att-x.att||x.m.name.localeCompare(y.m.name,"ko"));
+  return per+`<div class="small muted">${D.range[0]==="0000-00-00"?"전체 기간":fmtDate(D.range[0])+" ~ "+fmtDate(D.range[1])} · 경기일 ${D.days}일 · 결과 입력 ${D.ms.filter(hasResult).length}일</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">${aw.map(([t,b2,f])=>`<div class="panel" style="padding:12px;gap:2px;display:flex;flex-direction:column"><span class="label">🏆 ${t}</span>${b2?`<b style="font-size:1rem;word-break:keep-all">${b2.names.slice(0,3).map(esc).join(", ")}${b2.names.length>3?` 외 ${b2.names.length-3}명`:""}</b><span class="small muted num">${f(b2.v)}</span>`:`<span class="small muted">아직 없음</span>`}</div>`).join("")}</div>
+  <p class="small muted" style="margin:0">승률·승점 순위는 ${minPlay}일 이상 뛴 회원만 들어가요. 팀 성적은 그 팀 선수 모두에게 똑같이 기록돼요.</p>
+  <div class="panel" style="padding:8px 4px"><div style="overflow-x:auto"><table class="stand num" style="min-width:470px"><tr><th style="text-align:left;padding-left:8px">회원</th>${cols.map(([k,l])=>`<th><button class="btn ghost small" data-ssort="${k}" style="padding:2px 4px;font-size:.74rem;${seasonSort===k?"color:var(--accent);font-weight:700":""}">${l}${seasonSort===k?" ▼":""}</button></th>`).join("")}</tr>
+    ${sorted.map(x=>`<tr style="${x.play<minPlay?"color:var(--muted)":""}"><td style="text-align:left;padding-left:8px;white-space:nowrap">${esc(x.m.name)}</td><td>${x.att}/${D.days}</td><td>${x.play}일</td><td>${x.w}-${x.d}-${x.l}</td><td>${x.g?Math.round(x.rate*100)+"%":"-"}</td><td>${x.g?x.ppg.toFixed(2):"-"}</td><td style="color:var(--${x.delta>0?"good":x.delta<0?"bad":"muted"})">${x.delta>0?"+":""}${x.delta?r2(x.delta).toFixed(1):"0"}</td></tr>`).join("")}</table></div></div>
+  ${tot?`<div class="panel row spread"><div><div class="label">밸런스 검증</div><b class="num" style="font-size:1.2rem">${Math.round(agree/tot*100)}%</b> <span class="small muted">전력이 높았던 팀이 실제로 앞선 비율</span></div><span class="small muted" style="max-width:45%">50%에 가까울수록 팀이 공평했다는 뜻이에요</span></div>`:""}`;
+}
+// 회원 수정 화면용 개인 시즌 카드
+function memberSeasonHtml(id){
+  const D=seasonData(seasonP),x=D.rows.find(r=>r.id===id);
+  if(!x)return `<div class="small muted">${PERIODS[seasonP]} 시즌 기록이 아직 없어요.</div>`;
+  const chips=x.hist.slice(-5).map(h=>{const c=h.w>h.l?"good":h.w<h.l?"bad":"warn";return `<span class="pill num" style="color:var(--${c})">${h.date.slice(5).replace("-","/")} ${h.w}-${h.d}-${h.l}</span>`;}).join("");
+  // 같은 팀이었을 때 성적이 좋았던 짝
+  const P=new Map();D.ms.filter(hasResult).forEach(mt=>{const rec=teamRecord(mt);mt.teams.forEach((t,i)=>{if(!(t.ids||[]).includes(id))return;t.ids.forEach(o=>{if(o===id)return;const q=P.get(o)||{n:0,w:0,g:0};q.n++;q.w+=rec[i].w;q.g+=rec[i].w+rec[i].d+rec[i].l;P.set(o,q);});});});
+  const pals=[...P.entries()].filter(([o,q])=>q.n>=2&&q.g&&byId(o)).map(([o,q])=>({nm:byId(o).name,r:q.w/q.g,n:q.n})).sort((a,b)=>b.r-a.r||b.n-a.n).slice(0,3);
+  return `<div class="panel" style="display:flex;flex-direction:column;gap:6px;padding:12px"><div class="row spread"><b style="font-size:.9rem">${PERIODS[seasonP]} 시즌 기록</b><span class="small muted num">출석 ${x.att}/${D.days}</span></div>
+    <div class="num" style="font-size:.95rem"><b>${x.w}승 ${x.d}무 ${x.l}패</b> · 승률 ${x.g?Math.round(x.rate*100):0}% · 경기당 ${x.ppg.toFixed(2)}점</div>
+    ${chips?`<div class="meta" style="padding:0;gap:4px;display:flex;flex-wrap:wrap">${chips}</div>`:""}
+    ${pals.length?`<div class="small">잘 맞는 짝: ${pals.map(p=>`<b>${esc(p.nm)}</b> <span class="muted num">${Math.round(p.r*100)}% (${p.n}일)</span>`).join(" · ")}</div>`:""}</div>`;
 }
 /* ---------- 경기 기록 수정 (날짜 · 팀 명단 · 스코어) ---------- */
 function openMatchEdit(id){
@@ -690,7 +752,7 @@ function openMatchEdit(id){
   let date=mt.date;
   // 팀별 선수 목록: 확정 당시 기록(snap)이 있으면 그걸, 없으면 지금 회원 정보로
   const rows=mt.teams.map(t=>Array.isArray(t.snap)?t.snap.map(x=>({...x})):[...t.ids.map(id=>{const m=byId(id);return m?snapOf(m):{id,name:"(삭제된 회원)"};}),...t.names.filter(n=>/\(용병\)$/.test(n)).map(n=>({name:n.replace(/\(용병\)$/,""),guest:true}))]);
-  const gl=[...(mt.games||[]).map((g,i)=>({...g,legacy:i})),...boardOf(mt.id)].map(g=>({...g}));
+  const gl=[];const wdl=teamRecord(mt).map(x=>({...x}));
   const delG=new Set();
   const draw=()=>{
     const inMatch=new Set(rows.flat().map(x=>x.id).filter(Boolean));
@@ -706,14 +768,11 @@ function openMatchEdit(id){
           <select data-mv="${ti}:${xi}" aria-label="${esc(x.name)} 팀 이동" style="padding:4px 6px;width:auto;flex:none">${rows.map((_,j)=>`<option value="${j}" ${j===ti?"selected":""}>${j+1}팀</option>`).join("")}</select>
           <button type="button" class="btn ghost small" data-rm="${ti}:${xi}" aria-label="${esc(x.name)} 빼기" style="padding:2px 8px">✕</button></div>`).join("")}</div>`).join("")}
       <div class="row" style="gap:6px;flex-wrap:nowrap"><select id="meAdd" style="flex:1;min-width:0">${addable.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select><select id="meAddT" aria-label="넣을 팀" style="width:auto;flex:none">${rows.map((_,j)=>`<option value="${j}">${j+1}팀</option>`).join("")}</select><button type="button" class="btn small" id="meAddB">추가</button></div></div>
-    <div class="field"><span class="label">스코어</span>
-      ${gl.length?gl.map((g,gi)=>delG.has(gi)?"":`<div class="row" style="gap:6px;flex-wrap:nowrap;font-size:.88rem"><span style="min-width:48px" class="small muted">${g.legacy!=null?"":`${(g.r||0)+1}R ${FIELD[g.f]||""}`}</span>
-        <span>${BIBS[g.a%6][0]}</span><input type="number" min="0" inputmode="numeric" data-ga="${gi}" value="${g.ga||0}" style="width:52px;text-align:center"><span>:</span><input type="number" min="0" inputmode="numeric" data-gb="${gi}" value="${g.gb||0}" style="width:52px;text-align:center"><span>${BIBS[g.b%6][0]}</span>
-        <label class="small" style="display:flex;align-items:center;gap:3px;margin-left:auto"><input type="checkbox" data-gd="${gi}" ${g.legacy!=null||g.done?"checked":""} ${g.legacy!=null?"disabled":""}>끝</label>
-        <button type="button" class="btn ghost small" data-gx="${gi}" aria-label="경기 삭제" style="padding:2px 8px">✕</button></div>`).join(""):`<span class="small muted">입력된 경기가 없어요.</span>`}</div>`}
+    <div class="field"><span class="label">팀별 승 · 무 · 패</span>
+      ${wdl.map((r,i)=>`<div class="row" style="gap:6px;flex-wrap:nowrap;font-size:.88rem"><span style="min-width:40px"><b>${BIBS[i%6][0]}</b></span>${["w","d","l"].map(k=>`<label style="display:flex;align-items:center;gap:3px">${{w:"승",d:"무",l:"패"}[k]}<input type="number" min="0" inputmode="numeric" data-ew="${i}:${k}" value="${r[k]}" style="width:52px;text-align:center"></label>`).join("")}</div>`).join("")}</div>`}
     <button class="btn primary big" type="submit">저장</button></form></div>`;
     $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
-    const keep=()=>{date=$("#meDate").value||date;document.querySelectorAll("[data-ga]").forEach(i=>gl[+i.dataset.ga].ga=Math.max(0,+i.value||0));document.querySelectorAll("[data-gb]").forEach(i=>gl[+i.dataset.gb].gb=Math.max(0,+i.value||0));document.querySelectorAll("[data-gd]").forEach(i=>{const g=gl[+i.dataset.gd];if(g.legacy==null)g.done=i.checked;});};
+    const keep=()=>{date=$("#meDate").value||date;document.querySelectorAll("[data-ew]").forEach(i=>{const [ti,k]=i.dataset.ew.split(":");wdl[+ti][k]=Math.max(0,Math.floor(+i.value||0));});document.querySelectorAll("[data-ga]").forEach(i=>gl[+i.dataset.ga].ga=Math.max(0,+i.value||0));document.querySelectorAll("[data-gb]").forEach(i=>gl[+i.dataset.gb].gb=Math.max(0,+i.value||0));document.querySelectorAll("[data-gd]").forEach(i=>{const g=gl[+i.dataset.gd];if(g.legacy==null)g.done=i.checked;});};
     document.querySelectorAll("[data-mv]").forEach(sel=>sel.onchange=()=>{keep();const [ti,xi]=sel.dataset.mv.split(":").map(Number);const x=rows[ti].splice(xi,1)[0];rows[+sel.value].push(x);draw();});
     document.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{keep();const [ti,xi]=b.dataset.rm.split(":").map(Number);rows[ti].splice(xi,1);draw();});
     document.querySelectorAll("[data-gx]").forEach(b=>b.onclick=()=>{keep();delG.add(+b.dataset.gx);draw();});
@@ -723,7 +782,8 @@ function openMatchEdit(id){
         const body={date};
         if(!locked){
           body.teams=rows.map(t=>({ids:t.filter(x=>!x.guest&&x.id).map(x=>x.id),names:t.map(x=>x.name+(x.guest?"(용병)":"")),snap:t}));
-          body.games=gl.filter((g,gi)=>g.legacy!=null&&!delG.has(gi)).map(g=>({a:g.a,b:g.b,ga:g.ga,gb:g.gb}));
+          const er=wdlCheck(wdl);if(er.length&&wdl.some(x=>x.w+x.d+x.l)){toast(er[0]);return;}
+          body.wdl=wdl;
         }
         await db.doc("matches/"+id).update(body);
         if(!locked)for(let gi=0;gi<gl.length;gi++){const g=gl[gi];if(g.legacy!=null)continue;
@@ -761,6 +821,7 @@ function openEdit(m){
     ${isNew?"":`<div class="small muted">경기 보정치 <span class="num">${(m.adj||0)>0?"+":""}${(m.adj||0).toFixed(1)}</span> · 현재 점수 <span class="num">${eff(m).toFixed(1)}</span></div>`}
     ${by?`<div class="small muted">변경 기록에 <b>${esc(by)}</b>(으)로 남아요 <button type="button" class="btn ghost small" id="chgBy" style="padding:2px 6px">바꾸기</button></div>`
       :`<div class="field"><span class="label">누가 수정하나요? (한 번 고르면 이 기기에서 기억해요)</span><div class="seg">${OPERATORS.map(n=>`<button type="button" data-by="${n}">${n}</button>`).join("")}</div></div>`}
+    ${isNew?"":memberSeasonHtml(m.id)}
     ${isNew?"":memberLogHtml(m.id)}
     <button class="btn primary big" type="submit">저장</button>
     ${isNew?"":`<button type="button" class="btn danger" id="del">${confirmDel?"한 번 더 누르면 삭제됩니다":"회원 삭제"}</button>`}
@@ -840,14 +901,13 @@ async function confirmTeams(){
   const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":"")),snap:t.map(snapOf)})),games:[],applied:false,deltas:{}};
   try{const ref=await db.collection("matches").add(body);
     savePublic(o.teams.map(t=>({names:t.map(m=>m.name),guest:t.map(m=>!!m.guest)})),ref&&ref.id||null);
-    toast("확정했어요. 경기 진행 탭에서 대진표를 만들고 스코어를 입력하세요.");options=[];renderMake();if(ref&&ref.id)playId=ref.id;switchTab("play");}catch(e){dbErr(e);}
+    toast("확정했어요. 경기가 끝나면 이 기록에 팀별 승·무·패를 넣어 주세요.");options=[];renderMake();if(ref&&ref.id)playId=ref.id;recView="matches";switchTab("records");}catch(e){dbErr(e);}
 }
 async function applyMatch(mt,undo){
   try{
     if(!undo){
       const d={};
-      for(const g of playedGames(mt)){if(g.ga===g.gb)continue;const mult=Math.abs(g.ga-g.gb)>=3?1.5:1;const w=g.ga>g.gb?g.a:g.b,l=g.ga>g.gb?g.b:g.a;
-        mt.teams[w].ids.forEach(id=>d[id]=(d[id]||0)+STEP*mult);mt.teams[l].ids.forEach(id=>d[id]=(d[id]||0)-STEP*mult);}
+      teamRecord(mt).forEach((r,i)=>{const net=(r.w-r.l)*STEP;if(net)(mt.teams[i].ids||[]).forEach(id=>d[id]=(d[id]||0)+net);});
       const applied={};
       for(const [id,delta] of Object.entries(d)){const m=byId(id);if(!m)continue;const old=m.adj||0,nv=r2(Math.max(-ADJ_CAP,Math.min(ADJ_CAP,old+delta)));
         applied[id]=r2(nv-old);if(applied[id])await db.doc("members/"+id).update({adj:nv});}
@@ -866,7 +926,7 @@ async function resetAll(btn){
 }
 
 function switchTab(t){if(t==="members"&&tab!=="members"){memberOrder=null;lastEdited=null;}tab=t;document.querySelectorAll("[data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
-  ["make","play","members","records"].forEach(x=>$("#v-"+x).hidden=x!==t);if(t==="play")renderPlay();window.scrollTo(0,0);try{localStorage.setItem("tab",t);}catch(e){}}
+  ["make","members","records"].forEach(x=>$("#v-"+x).hidden=x!==t);window.scrollTo(0,0);try{localStorage.setItem("tab",t);}catch(e){}}
 
 document.addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;
@@ -886,6 +946,8 @@ document.addEventListener("click",e=>{
   if(b.id==="gen")return generate();
   if(b.id==="newWeek"){saveWeek();matchDate=nextTuesday();attend=new Set();guests=[];options=[];teamCount=null;saveAttend();renderMake();toast(`${fmtDate(matchDate)} 출석을 새로 시작해요. 지난주 출석은 기록 탭에 남아 있어요.`);return;}
   if(b.dataset.rv){recView=b.dataset.rv;renderRecords();return;}
+  if(b.dataset.sper){seasonP=b.dataset.sper;renderRecords();return;}
+  if(b.dataset.ssort){seasonSort=b.dataset.ssort;renderRecords();return;}
   if(b.dataset.wload){const w=weeks.find(x=>x.id===b.dataset.wload);if(!w)return;matchDate=w.date;attend=new Set((w.ids||[]).filter(id=>byId(id)));guests=(w.guests||[]).map((n,i)=>({id:"g"+Date.now().toString(36)+i,name:n}));options=[];saveAttend();switchTab("make");renderMake();toast(`${fmtDate(w.date)} 출석을 불러왔어요`);return;}
   if(b.dataset.wdel){const id=b.dataset.wdel;if(pendingWeek!==id){pendingWeek=id;renderRecords();setTimeout(()=>{if(pendingWeek===id){pendingWeek=null;renderRecords();}},4000);return;}
     pendingWeek=null;db.doc("weeks/"+id).delete().then(()=>toast("출석 기록을 지웠어요")).catch(dbErr);return;}
@@ -899,7 +961,7 @@ document.addEventListener("click",e=>{
   if(b.id==="pasteNames")return openPasteNames();
   if(b.id==="pngOpt"){const o=options[optIdx];return sharePng(gameDate(),o.teams.map(t=>t.map(m=>({name:m.name,guest:!!m.guest}))));}
   if(b.dataset.fb)return openFeedback(b.dataset.fb);
-  if(b.dataset.play){playId=b.dataset.play;switchTab("play");return;}
+  if(b.dataset.play){playId=b.dataset.play;switchTab("records");return;}
   if(b.dataset.pick){playId=b.dataset.pick;renderPlay();return;}
   if(b.dataset.fields){playCfg.fields=+b.dataset.fields;renderPlay();return;}
   if(b.dataset.gmin){playCfg.game=+b.dataset.gmin;renderPlay();return;}
@@ -914,6 +976,9 @@ document.addEventListener("click",e=>{
   if(b.dataset.delg){const id=b.dataset.delg;if(pendingG!==id){pendingG=id;renderPlay();setTimeout(()=>{if(pendingG===id){pendingG=null;renderPlay();}},4000);return;}
     pendingG=null;board=board.filter(x=>x.id!==id);renderPlay();db.doc("games/"+id).delete().catch(dbErr);return;}
   if(b.id==="addG")return addManualGame();
+  if(b.dataset.wdl){const [mid,i,k,d]=b.dataset.wdl.split(":");const mt=matches.find(x=>x.id===mid);if(!mt||mt.applied)return;
+    const rec=teamRecord(mt).map(x=>({...x}));rec[+i][k]=Math.max(0,rec[+i][k]+(+d));mt.wdl=rec;renderRecords();
+    db.doc("matches/"+mt.id).update({wdl:rec}).catch(dbErr);return;}
   if(b.dataset.mstat){radarHidden=new Set();return openMatchStats(b.dataset.mstat);}
   if(b.dataset.png){const mt=matches.find(x=>x.id===b.dataset.png);
     return sharePng(mt.date,mt.teams.map(t=>t.names.map(n=>{const g=/\(용병\)$/.test(n);return {name:n.replace(/\(용병\)$/,""),guest:g,gk:false};})));}
@@ -1037,62 +1102,60 @@ async function addManualGame(){
   const cur=boardOf(mt.id),open=cur.filter(g=>!g.done),r=open.length?Math.max(...open.map(g=>g.r)):(cur.length?Math.max(...cur.map(g=>g.r))+1:0);
   try{await db.collection("games").add({matchId:mt.id,r,f,a,b,ga:0,gb:0,done:false,min:playCfg.game,at:Date.now()});toast("경기를 추가했어요");}catch(e){dbErr(e);}
 }
+// 팀별 승·무·패: 직접 입력한 값(wdl) 우선, 없으면 예전 경기별 스코어로 계산
+function teamRecord(mt){
+  const k=mt.teams.length;
+  if(Array.isArray(mt.wdl))return mt.teams.map((_,i)=>{const x=mt.wdl[i]||{};return {w:+x.w||0,d:+x.d||0,l:+x.l||0};});
+  const t=[...Array(k)].map(()=>({w:0,d:0,l:0}));
+  playedGames(mt).forEach(g=>{const A=t[g.a],B=t[g.b];if(!A||!B)return;if(g.ga>g.gb){A.w++;B.l++;}else if(g.ga<g.gb){B.w++;A.l++;}else{A.d++;B.d++;}});
+  return t;
+}
+const hasResult=mt=>teamRecord(mt).some(x=>x.w+x.d+x.l);
+const gamesOfDay=mt=>Math.round(teamRecord(mt).reduce((a,x)=>a+x.w+x.d+x.l,0)/2);
+function wdlCheck(rec){const W=rec.reduce((a,x)=>a+x.w,0),L=rec.reduce((a,x)=>a+x.l,0),D=rec.reduce((a,x)=>a+x.d,0),out=[];
+  if(W!==L)out.push(`승 합계(${W})와 패 합계(${L})가 달라요. ${W>L?"승이 "+(W-L)+"개 많아요":"패가 "+(L-W)+"개 많아요"}.`);
+  if(D%2)out.push(`무승부 합계(${D})가 홀수예요. 무승부는 두 팀에 하나씩 들어가요.`);
+  return out;}
 function standings(mt){
-  const k=mt.teams.length,t=[...Array(k).keys()].map(i=>({i,p:0,w:0,d:0,l:0,gf:0,ga:0,pts:0}));
-  playedGames(mt).forEach(g=>{const A=t[g.a],B=t[g.b];if(!A||!B)return;A.p++;B.p++;A.gf+=g.ga;A.ga+=g.gb;B.gf+=g.gb;B.ga+=g.ga;
-    if(g.ga>g.gb){A.w++;B.l++;A.pts+=3;}else if(g.ga<g.gb){B.w++;A.l++;B.pts+=3;}else{A.d++;B.d++;A.pts++;B.pts++;}});
-  return [...t].sort((x,y)=>y.pts-x.pts||(y.gf-y.ga)-(x.gf-x.ga)||y.gf-x.gf||x.i-y.i);
+  const rec=teamRecord(mt);
+  return rec.map((r,i)=>({i,p:r.w+r.d+r.l,w:r.w,d:r.d,l:r.l,pts:r.w*3+r.d})).sort((x,y)=>y.pts-x.pts||y.w-x.w||x.i-y.i);
 }
 function standHtml(mt,compact){
   const st=standings(mt);if(!st.some(x=>x.p))return "";
-  return `<div${compact?"":` class="panel"`}>${compact?"":`<div class="row spread"><b>순위</b><span class="small muted">승 3점 · 무 1점 · 패 0점</span></div>`}
-    <table class="stand num"><tr><th>순위</th><th style="text-align:left">팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득</th><th>실</th><th>차</th><th>승점</th></tr>
-    ${st.map((x,ri)=>`<tr><td>${ri+1}</td><td style="text-align:left;white-space:nowrap"><span class="bib" style="background:${BIBS[x.i%6][1]};width:9px;height:12px"></span> <b>${BIBS[x.i%6][0]}</b></td><td>${x.p}</td><td>${x.w}</td><td>${x.d}</td><td>${x.l}</td><td>${x.gf}</td><td>${x.ga}</td><td>${x.gf-x.ga>0?"+":""}${x.gf-x.ga}</td><td><b>${x.pts}</b></td></tr>`).join("")}</table></div>`;
+  return `<div${compact?"":` class="panel"`}>${compact?"":`<div class="row spread"><b>오늘 순위</b><span class="small muted">승 3점 · 무 1점 · 패 0점</span></div>`}
+    <table class="stand num"><tr><th>순위</th><th style="text-align:left">팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>승률</th><th>승점</th></tr>
+    ${st.map((x,ri)=>`<tr><td>${ri+1}</td><td style="text-align:left;white-space:nowrap"><span class="bib" style="background:${BIBS[x.i%6][1]};width:9px;height:12px"></span> <b>${BIBS[x.i%6][0]}</b></td><td>${x.p}</td><td>${x.w}</td><td>${x.d}</td><td>${x.l}</td><td>${x.p?Math.round(x.w/x.p*100)+"%":"-"}</td><td><b>${x.pts}</b></td></tr>`).join("")}</table></div>`;
 }
 function teamTag(i){return `<span class="tn"><span class="bib" style="background:${BIBS[i%6][1]};width:10px;height:13px"></span>${BIBS[i%6][0]}</span>`;}
-function renderPlay(){
+function wdlInputHtml(mt){
+  const rec=teamRecord(mt),errs=wdlCheck(rec),lb={w:"승",d:"무",l:"패"};
+  if(mt.applied)return "";
+  const cell=(i,k,val)=>`<div class="wc"><button data-wdl="${mt.id}:${i}:${k}:-1" ${!val?"disabled":""} aria-label="${BIBS[i%6][0]} ${lb[k]} 빼기">−</button><b class="num">${val}</b><button data-wdl="${mt.id}:${i}:${k}:1" aria-label="${BIBS[i%6][0]} ${lb[k]} 더하기">+</button></div>`;
+  return `<div class="wgrid"><span class="label">결과</span><span class="label">승</span><span class="label">무</span><span class="label">패</span>
+    ${rec.map((r,i)=>`${teamTag(i)}${cell(i,"w",r.w)}${cell(i,"d",r.d)}${cell(i,"l",r.l)}`).join("")}</div>
+    ${errs.length&&hasResult(mt)?`<div class="small" style="color:var(--warn)">${errs.join("<br>")}</div>`:""}`;
+}
+function renderPlay(){ // 경기 결과 탭은 없앴고, 결과는 경기 기록 카드에서 바로 입력
+  return;
   const v=$("#v-play");if(!v)return;
   if(!ready){v.innerHTML=`<div class="empty">불러오는 중…</div>`;return;}
   if(!db){v.innerHTML=`<div class="notice">저장소에 연결할 수 없습니다.</div>`;return;}
   const list=[...matches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  if(!list.length){v.innerHTML=`<h2>경기 진행</h2><div class="panel empty"><strong>확정된 팀이 없어요</strong>팀 짜기에서 조합을 확정하면 여기서 대진표를 만들고 구장별 스코어를 입력할 수 있어요.</div>`;return;}
+  if(!list.length){v.innerHTML=`<h2>경기 결과</h2><div class="panel empty"><strong>확정된 팀이 없어요</strong>팀 짜기에서 조합을 확정하면 여기서 팀별 승·무·패를 넣을 수 있어요.</div>`;return;}
   if(!playId||!list.some(m=>m.id===playId))playId=(list.find(m=>!m.applied)||list[0]).id;
-  const mt=list.find(m=>m.id===playId),k=mt.teams.length,cur=boardOf(mt.id);
-  let h=`<div class="row spread"><h2>경기 진행</h2>${list.length>1?`<div class="seg">${list.slice(0,3).map(m=>`<button data-pick="${m.id}" aria-pressed="${m.id===playId}">${fmtDate(m.date).replace(/ \(.\)/,"")}</button>`).join("")}</div>`:""}</div>
-  <div class="small muted" style="margin-top:-6px">${fmtDate(mt.date)} · ${k}팀${mt.applied?` · <b style="color:var(--good)">점수 반영됨</b>`:""}</div>`;
-  if(!cur.length){
-    const per=Math.min(playCfg.fields,Math.floor(k/2)),slots=Math.max(1,Math.floor(playCfg.total/playCfg.game)),rest=k-per*2;
-    h+=`<div class="panel" style="display:flex;flex-direction:column;gap:12px">
-      <b>대진표 만들기</b>
-      <div class="field"><span class="label">구장 수</span><div class="seg">${[1,2,3].map(n=>`<button data-fields="${n}" aria-pressed="${playCfg.fields===n}">${n}면</button>`).join("")}</div></div>
-      <div class="field"><span class="label">경기 시간</span><div class="seg">${[10,12,15,20].map(n=>`<button data-gmin="${n}" aria-pressed="${playCfg.game===n}">${n}분</button>`).join("")}</div></div>
-      <div class="field"><span class="label">전체 시간</span><div class="seg">${[90,120,150].map(n=>`<button data-tmin="${n}" aria-pressed="${playCfg.total===n}">${n/60%1?(n/60).toFixed(1):n/60}시간</button>`).join("")}</div></div>
-      <div class="small">→ <b>${slots}라운드</b> · 라운드마다 ${per}경기${rest>0?` (쉬는 팀 ${rest}팀, 돌아가며 쉼)`:""} · 총 <b>${slots*per}경기</b></div>
-      <div class="small muted">순서: ${rrRounds(k).slice(0,3).map(ms=>ms.slice(0,per).map(([a,b])=>`${a+1}-${b+1}`).join(", ")).join(" → ")} → … 계속 순환</div>
-      <button class="btn primary big" id="mkSched">대진표 만들기</button></div>`;
-  }else{
-    const rs=[...new Set(cur.map(g=>g.r))].sort((a,b)=>a-b),nowR=(cur.find(g=>!g.done)||{}).r;
-    const doneN=cur.filter(g=>g.done).length;
-    h+=`<div class="balance" style="flex-wrap:wrap"><span>진행</span><b class="num">${doneN} / ${cur.length}</b><span class="small muted">경기 끝남</span>${nowR!=null?`<span class="small" style="margin-left:auto">지금 <b>${rs.indexOf(nowR)+1}라운드</b></span>`:`<span class="small" style="margin-left:auto;color:var(--good)"><b>모든 경기 끝</b></span>`}</div>`;
-    h+=standHtml(mt,false);
-    h+=rs.map((r,ri)=>{const gs=cur.filter(g=>g.r===r),playing=new Set(gs.flatMap(g=>[g.a,g.b])),rest=[...Array(k).keys()].filter(i=>!playing.has(i)),isNow=r===nowR,allDone=gs.every(g=>g.done);
-      return `<section class="slot${isNow?" now":""}"><h3>${ri+1}라운드${isNow?`<span class="badge wait">진행 중</span>`:allDone?`<span class="small muted" style="font-weight:400">끝</span>`:""}${rest.length?`<span class="small muted" style="margin-left:auto;font-weight:400">쉼: ${rest.map(i=>BIBS[i%6][0]).join(", ")}</span>`:""}</h3>
-      ${gs.map(g=>!g.done&&nowR!=null&&ri>rs.indexOf(nowR)+1?`<div class="game"><span class="small muted" style="min-width:44px">${FIELD[g.f]||""}구장</span>${teamTag(g.a)}<span class="muted">vs</span>${teamTag(g.b)}<span class="small muted" style="margin-left:auto">예정</span></div>`:g.done?`<div class="gcard done"><span class="small muted">${FIELD[g.f]||""}구장</span><span style="justify-self:end">${teamTag(g.a)}</span><b class="num" style="font-size:1.15rem;padding:0 6px">${g.ga} : ${g.gb}</b><span>${teamTag(g.b)}</span><button class="btn ghost small" data-reopen="${g.id}" ${mt.applied?"disabled":""}>수정</button></div>`
-        :`<div class="gcard"><div class="fld"><b>${FIELD[g.f]||""}구장</b><span>${g.min||playCfg.game}분</span><button class="btn ghost small" data-delg="${g.id}" style="margin-left:auto;padding:2px 8px">${pendingG===g.id?"정말 삭제":"삭제"}</button></div>
-          <div class="side">${teamTag(g.a)}<div class="sc"><button data-inc="${g.id}:a:-1" aria-label="${BIBS[g.a%6][0]} 득점 빼기">−</button><b>${g.ga||0}</b><button data-inc="${g.id}:a:1" aria-label="${BIBS[g.a%6][0]} 득점 더하기">+</button></div></div>
-          <span class="vs">:</span>
-          <div class="side">${teamTag(g.b)}<div class="sc"><button data-inc="${g.id}:b:-1" aria-label="${BIBS[g.b%6][0]} 득점 빼기">−</button><b>${g.gb||0}</b><button data-inc="${g.id}:b:1" aria-label="${BIBS[g.b%6][0]} 득점 더하기">+</button></div></div>
-          <button class="btn primary" data-fin="${g.id}" style="grid-column:1/-1">경기 종료</button></div>`).join("")}</section>`;}).join("");
-    const opts=mt.teams.map((_,i)=>`<option value="${i}">${BIBS[i%6][0]}</option>`).join("");
-    h+=`<details class="panel"><summary style="cursor:pointer;font-weight:700">대진표 고치기</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
-      <div class="row" style="flex-wrap:nowrap;gap:6px"><select id="mgA" aria-label="팀 A">${opts}</select><span class="muted">vs</span><select id="mgB" aria-label="팀 B">${opts.replace('value="1"','value="1" selected')}</select><select id="mgF" aria-label="구장">${[...Array(Math.max(1,playCfg.fields))].map((_,i)=>`<option value="${i}">${FIELD[i]}구장</option>`).join("")}</select><button class="btn small" id="addG">경기 추가</button></div>
-      <div class="row"><button class="btn small" id="moreSched">30분 더 (순환 이어서)</button><button class="btn small danger" id="resetSched">${resetArmedS?"한 번 더 누르면 남은 경기 삭제":"시작 안 한 경기 지우기"}</button></div>
-      <span class="small muted">스코어가 들어간 경기와 끝난 경기는 지워지지 않아요.</span></div></details>`;
-  }
-  const played=playedGames(mt).length,open=cur.filter(g=>!g.done).length;
-  h+=`<div class="panel" style="display:flex;flex-direction:column;gap:8px"><b>경기 끝나고</b>
-    <span class="small muted">끝난 경기 결과로 회원 점수를 보정해요 (승 +0.1 · 패 −0.1, 3골 차 이상 1.5배).${open&&!mt.applied?` 아직 끝나지 않은 경기 ${open}개는 빠져요.`:""}</span>
-    <div class="row">${mt.applied?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn primary small" data-apply="${mt.id}" ${played?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-fb="${mt.id}">개인 피드백</button><button class="btn small" data-png="${mt.id}">팀 이미지</button></div></div>`;
+  const mt=list.find(m=>m.id===playId),rec=teamRecord(mt),locked=!!mt.applied,errs=wdlCheck(rec);
+  let h=`<div class="row spread"><h2>경기 결과</h2>${list.length>1?`<div class="seg">${list.slice(0,3).map(m=>`<button data-pick="${m.id}" aria-pressed="${m.id===playId}">${fmtDate(m.date).replace(/ \(.\)/,"")}</button>`).join("")}</div>`:""}</div>
+  <div class="small muted" style="margin-top:-6px">${fmtDate(mt.date)} · ${mt.teams.length}팀${locked?` · <b style="color:var(--good)">점수 반영됨</b>`:""}</div>
+  <p class="small muted" style="margin:0">경기가 다 끝나면 팀마다 이긴 판·비긴 판·진 판 수를 넣어 주세요. 팀 성적은 그 팀 선수 모두에게 똑같이 기록돼요.</p>`;
+  const step=(i,k,val)=>`<div class="wdl"><span class="lb">${{w:"승",d:"무",l:"패"}[k]}</span><button data-wdl="${i}:${k}:-1" ${locked||!val?"disabled":""} aria-label="${BIBS[i%6][0]} ${{w:"승",d:"무",l:"패"}[k]} 빼기">−</button><b class="num">${val}</b><button data-wdl="${i}:${k}:1" ${locked?"disabled":""} aria-label="${BIBS[i%6][0]} ${{w:"승",d:"무",l:"패"}[k]} 더하기">+</button></div>`;
+  h+=`<div style="display:flex;flex-direction:column;gap:8px">${rec.map((r,i)=>`<div class="wrow"><div class="row spread" style="gap:8px">${teamTag(i)}<span class="small muted num">${r.w+r.d+r.l}경기 · 승점 ${r.w*3+r.d}</span></div>
+    <div class="wset">${step(i,"w",r.w)}${step(i,"d",r.d)}${step(i,"l",r.l)}</div>
+    <div class="small muted" style="line-height:1.5">${(mt.teams[i].names||[]).map(esc).join(", ")}</div></div>`).join("")}</div>`;
+  if(errs.length&&hasResult(mt))h+=`<div class="notice small" style="color:var(--warn)">${errs.join("<br>")}</div>`;
+  h+=standHtml(mt,false);
+  h+=`<div class="panel" style="display:flex;flex-direction:column;gap:8px"><b>결과를 다 넣었으면</b>
+    <span class="small muted">팀 성적으로 회원 점수를 보정해요. 선수마다 (승 − 패) × 0.1점이에요. 예: 5승 3패 → +0.2점</span>
+    <div class="row">${locked?`<button class="btn small" data-undo="${mt.id}">반영 취소</button>`:`<button class="btn primary small" data-apply="${mt.id}" ${hasResult(mt)&&!errs.length?"":"disabled"}>점수 반영</button>`}<button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-fb="${mt.id}">개인 피드백</button><button class="btn small" data-png="${mt.id}">팀 이미지</button></div></div>`;
   v.innerHTML=h;
 }
 /* ---------- 경기 기록 → 팀 전력 보기 ---------- */
@@ -1109,10 +1172,8 @@ function openMatchStats(id){
   const st=teams.map(stats),avgs=st.map(s=>s.avg),gap=Math.max(...avgs)-Math.min(...avgs),bs=balanceScore(teams);
   const lv=bs>=85?["good","아주 고름"]:bs>=65?["warn","괜찮음"]:["bad","차이 있음"];
   const rng=a=>Math.max(...a)-Math.min(...a);
-  // 실제 결과 (승·무·패, 득실)
-  const rec=teams.map(()=>({w:0,d:0,l:0,gf:0,ga:0}));
-  playedGames(mt).forEach(g=>{const A=rec[g.a],B=rec[g.b];if(!A||!B)return;A.gf+=g.ga;A.ga+=g.gb;B.gf+=g.gb;B.ga+=g.ga;if(g.ga>g.gb){A.w++;B.l++;}else if(g.ga<g.gb){B.w++;A.l++;}else{A.d++;B.d++;}});
-  const games=playedGames(mt).length;
+  // 실제 결과 (승·무·패)
+  const rec=teamRecord(mt),games=hasResult(mt);
   const wins=[];for(let i=0;i<k;i++)for(let j=i+1;j<k;j++){const pw=winProb(st[i].avg,st[j].avg);wins.push(`<span class="pill num">${i+1}팀 ${Math.round(pw*100)} : ${100-Math.round(pw*100)} ${j+1}팀</span>`);}
   const rows=[["팀 전력 평균",st.map(s=>s.avg),2,.1,.2],["에이스 (상위 2명 합)",st.map(s=>s.top2),1,.5,1],["약점 (하위 2명 합)",st.map(s=>s.bot2),1,.5,1],
     ...AREAS.map(([kk,l])=>[l,st.map(s=>s[kk]),1,.25,.5]),...POS_KEYS.map(p=>[POS[p]+" 인원",st.map(s=>s.P[p]),0,1,2]),["장신",st.map(s=>s.tall),0,1,2],["왼발",st.map(s=>s.left),0,1,2]];
@@ -1121,7 +1182,7 @@ function openMatchStats(id){
     rows.map(([l,a,d,g,w])=>{const r=rng(a);return `<tr style="border-top:1px solid var(--line)"><td style="padding:5px 6px 5px 0;white-space:nowrap">${l}</td>${a.map(x=>`<td style="padding:5px 6px;text-align:right">${x.toFixed(d)}</td>`).join("")}<td style="padding:5px 0 5px 8px;text-align:right;white-space:nowrap">${mark(r,g,w)} ${r.toFixed(d)}</td></tr>`;}).join("")+`</table></div>`;
   const cards=st.map((s,ti)=>{const b=BIBS[ti%6],r=rec[ti];return `<article class="team">
     <header><span class="bib" style="background:${b[1]}"></span><span class="t">${b[0]}</span><span class="small muted num">${s.n}명${s.guest?` (용병 ${s.guest})`:""}</span><span class="avg">${s.avg.toFixed(2)}</span></header>
-    ${games?`<div class="meta"><span class="pill num"><b>${r.w}승 ${r.d}무 ${r.l}패</b> · 득실 ${r.gf}:${r.ga}</span></div>`:""}
+    ${games?`<div class="meta"><span class="pill num"><b>${r.w}승 ${r.d}무 ${r.l}패</b> · 승점 ${r.w*3+r.d}</span></div>`:""}
     <div class="meta">${["S","A","B","C","D"].filter(t=>s.T[t]).map(t=>`<span class="pill num"><b style="color:var(--t${t})">${t}</b> ${s.T[t]}</span>`).join("")}</div>
     <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.min.short?`<span class="pill" style="color:var(--bad)">필수 포지션 부족: ${s.min.miss}</span>`:s.form.short?`<span class="pill" style="color:var(--warn)">2-1-2엔 ${s.form.miss} 부족</span>`:`<span class="pill" style="color:var(--good)">2-1-2 대형 ✓</span>`}</div>
     <div class="meta" style="padding-top:4px">${AREAS.map(([kk])=>`<span class="pill num">${AREA_SHORT[kk]} ${s[kk].toFixed(1)}</span>`).join("")}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}</div></article>`;}).join("");
@@ -1458,7 +1519,7 @@ async function sharePng(dateStr,teams){
 }
 /* ---------- boot ---------- */
 setInterval(()=>{headerStats();const c=document.getElementById("cdLine");if(c){const x=countdown(gameDate(),matchTime);c.textContent=x.txt;c.style.color=`var(--${x.cls||"ink"})`;}},30000);
-try{const t=localStorage.getItem("tab");if(t&&["make","play","members","records"].includes(t))switchTab(t);}catch(e){}
+try{const t=localStorage.getItem("tab");if(t&&["make","members","records"].includes(t))switchTab(t);}catch(e){}
 renderAll();
 (async()=>{
   try{db=window.claude&&window.claude.use?await window.claude.use("db"):null;}catch(e){db=null;}
