@@ -281,8 +281,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1792568886"></script>
-<script src="adapter.js?v=1792568886"></script>
+<script src="config.js?v=1792668239"></script>
+<script src="adapter.js?v=1792668239"></script>
 <script>
 (function(){
 "use strict";
@@ -351,9 +351,9 @@ const avatar=(m,sz)=>m.photo?`<img class="av" src="${m.photo}" alt="" width="${s
 function squareJpeg(src,cb,size){const img=new Image();img.onload=()=>{const n=Math.min(img.width,img.height),c=document.createElement("canvas"),S=size||320;c.width=c.height=S;
   c.getContext("2d").drawImage(img,(img.width-n)/2,(img.height-n)/2,n,n,0,0,S,S);cb(c.toDataURL("image/jpeg",.82));};img.onerror=()=>toast("사진을 읽지 못했어요");img.src=src;}
 const byId=id=>members.find(m=>m.id===id);
-// ---- 능력치 5가지 (1~5점): 슈터·드리블러·패스마스터·수비력·활동량 / 별도 표기: 장신·왼발 ----
-const AREAS=[["sht","슈터"],["dri","드리블러"],["pas","패스마스터"],["def","수비력"],["sta","활동량"]];
-const AREA_SHORT={sht:"슛",dri:"드",pas:"패",def:"수",sta:"활"};
+// ---- 능력치 5가지 (1~5점): 결정력·드리블러·연계능력·수비력·활동량 / 별도 표기: 장신·왼발 ----
+const AREAS=[["sht","결정력"],["dri","드리블러"],["pas","연계능력"],["def","수비력"],["sta","활동량"]];
+const AREA_SHORT={sht:"결",dri:"드",pas:"연",def:"수",sta:"활"};
 // 6대6 기본 대형: 골키퍼(돌아가며) + 사이드 2 · 중앙 1 · 수비 2
 const POS_WEIGHT={
   WG:{sht:.25,dri:.3,pas:.1,def:.1,sta:.25},   // 사이드: 돌파·슈팅·활동량
@@ -363,11 +363,11 @@ POS_WEIGHT.FW=POS_WEIGHT.ST=POS_WEIGHT.MF;
 const half=x=>Math.round(x*2)/2;
 function suggestPos(v,allowed){let best="MF",bv=-1;for(const p of allowed||POS_KEYS){const x=overallOf(v,p);if(x>bv+1e-9){bv=x;best=p;}}return best;}
 function overallOf(v,pos){const w=POS_WEIGHT[pos]||POS_WEIGHT.FW;return r2(AREAS.reduce((a,[k])=>a+(v[k]??3)*w[k],0));}
-// 예전 데이터 이행: 공격력 → 슈터, 기술(미드) → 드리블러·패스마스터 임시값(미입력 표시), 피지컬 → 장신 표기로 대체
+// 예전 데이터 이행: 공격력 → 결정력, 기술(미드) → 드리블러·연계능력 임시값(미입력 표시), 피지컬 → 장신 표기로 대체
 function norm(m){
   const b=m.score||3,tec=m.tec??m.mid??b,legacy=half(((m.atk??b)+tec+(m.def??b))/3);
   const o={...m,sht:m.sht??m.atk??b,dri:m.dri??tec,pas:m.pas??tec,def:m.def??b,sta:m.sta??legacy,tall:!!m.tall,tallSet:m.tallSet??(m.tall!=null)};
-  o.unset=Array.isArray(m.unset)?m.unset:[m.dri==null?"드리블러":"",m.pas==null?"패스마스터":"",m.sta==null?"활동량":""].filter(Boolean);
+  o.unset=Array.isArray(m.unset)?m.unset:[m.dri==null?"드리블러":"",m.pas==null?"연계능력":"",m.sta==null?"활동량":""].filter(Boolean);
   const posOk=m.posSet&&POS_KEYS.includes(m.pos);
   o.pos=posOk?m.pos:suggestPos(o,m.posSet&&m.pos==="FW"?["WG","MF"]:POS_KEYS);
   o.pos2=(Array.isArray(m.pos2)?m.pos2:[]).filter(x=>POS_KEYS.includes(x)&&x!==o.pos);
@@ -670,7 +670,7 @@ function renderMembers(){
   const tot=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
   let h=`<div class="row spread"><h2>회원 티어표</h2><div class="row"><button class="btn small" id="openLogs">변경 기록</button><button class="btn small" id="faceMap">얼굴 사진 연결</button><button class="btn small" id="bulk">여러 명 등록</button><button class="btn small${delMode?"":" danger"}" id="delMode">${delMode?"삭제 취소":"회원 삭제"}</button><button class="btn primary small" id="addOne">회원 추가</button></div></div>`;
   if(!members.length){
-    h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 슈터 드리블러 패스마스터 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
+    h+=`<div class="panel empty"><label class="btn" style="display:inline-block;margin-bottom:12px;cursor:pointer">기존 데이터 불러오기 (.json)<input type="file" id="seedIn" accept=".json,application/json" hidden></label><br><strong>회원을 등록해 주세요</strong>한 줄에 한 명씩 <span class="num">이름 결정력 드리블러 연계능력 수비력 활동량</span> 형식으로 붙여 넣으면 한 번에 등록됩니다.<div style="margin-top:14px"><button class="btn primary" id="bulk2">여러 명 등록</button></div></div>
     <div class="panel small"><div class="label">점수 기준 (1~5점, 0.5 단위)</div><p style="margin:.4rem 0 0">5 = S · 4 = A · 3 = B · 2 = C · 1 = D. 4.5점은 A+, 3.5점은 B+로 표시됩니다. 경기 결과에 따라 승리 +0.1, 패배 −0.1이 보정되고, 3골 차 이상이면 1.5배가 됩니다. 보정은 ±1.5까지만 쌓입니다.</p></div>`;
     v.innerHTML=h;return;
   }
@@ -684,9 +684,9 @@ function renderMembers(){
   <tr><td style="padding:5px 0">${tierHtml(2)} 2</td><td>기본기나 체력이 부족, 포지션 이해가 낮음</td></tr>
   <tr><td style="padding:5px 0">${tierHtml(1)} 1</td><td>입문자. 볼 다루기가 어려움</td></tr>
   </table>
-  <p style="margin:.6rem 0 0"><b>슈터</b> 슈팅·골 결정력·침투 · <b>드리블러</b> 드리블 돌파·볼 키핑·탈압박 · <b>패스마스터</b> 패스 정확도·시야·연계 · <b>수비력</b> 대인 방어·위치 선정·태클·커버 · <b>활동량</b> 많이 뛰는지·압박·체력. 다섯 항목을 위 기준으로 각각 매기면 포지션별 비중으로 종합 점수가 계산되고, 티어는 종합 점수로 정해집니다.</p>
+  <p style="margin:.6rem 0 0"><b>결정력</b> 슈팅 정확도·마무리·침투 · <b>드리블러</b> 드리블 돌파·볼 키핑·탈압박 · <b>연계능력</b> 패스 정확도·시야·동료 활용 · <b>수비력</b> 대인 방어·위치 선정·태클·커버 · <b>활동량</b> 많이 뛰는지·압박·체력. 다섯 항목을 위 기준으로 각각 매기면 포지션별 비중으로 종합 점수가 계산되고, 티어는 종합 점수로 정해집니다.</p>
   <p style="margin:.4rem 0 0"><span class="ft tall">장신</span> 키·제공권이 좋은 선수, <span class="ft lf">왼발</span> 왼발잡이는 점수와 별개로 표기하고, 팀을 짤 때 한 팀에 몰리지 않게 나눕니다.</p>
-  <div style="overflow-x:auto;margin-top:8px"><table class="num" style="border-collapse:collapse;font-size:.8rem;min-width:100%"><tr style="color:var(--muted)"><td style="padding:3px 6px 3px 0">비중</td><td>슈터</td><td>드리블러</td><td>패스마스터</td><td>수비력</td><td>활동량</td></tr>
+  <div style="overflow-x:auto;margin-top:8px"><table class="num" style="border-collapse:collapse;font-size:.8rem;min-width:100%"><tr style="color:var(--muted)"><td style="padding:3px 6px 3px 0">비중</td><td>결정력</td><td>드리블러</td><td>연계능력</td><td>수비력</td><td>활동량</td></tr>
     <tr><td style="padding:3px 6px 3px 0"><b>사이드</b></td><td>25%</td><td><b>30%</b></td><td>10%</td><td>10%</td><td>25%</td></tr>
     <tr><td style="padding:3px 6px 3px 0"><b>중앙</b></td><td>20%</td><td>15%</td><td><b>30%</b></td><td>10%</td><td>25%</td></tr>
     <tr><td style="padding:3px 6px 3px 0"><b>수비</b></td><td>5%</td><td>5%</td><td>20%</td><td><b>45%</b></td><td>25%</td></tr></table></div>
@@ -943,7 +943,7 @@ function parseLine(line){
 function openBulk(){
   $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="bulkForm">
     <div class="row spread"><h2>여러 명 등록</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
-    <p class="small muted" style="margin:0">한 줄에 한 명씩 <b>이름 슈터 드리블러 패스마스터 수비력 활동량</b> 순서로 적어 주세요 (1~5, 0.5 단위). 끝에 "사이드·중앙·수비"를 붙이면 포지션이 정해지고, 두 개 이상 쓰면 두 번째부터는 가능 포지션이 돼요. 점수를 하나만 쓰면 다섯 항목에 똑같이, 안 쓰면 3점으로 등록됩니다.</p>
+    <p class="small muted" style="margin:0">한 줄에 한 명씩 <b>이름 결정력 드리블러 연계능력 수비력 활동량</b> 순서로 적어 주세요 (1~5, 0.5 단위). 끝에 "사이드·중앙·수비"를 붙이면 포지션이 정해지고, 두 개 이상 쓰면 두 번째부터는 가능 포지션이 돼요. 점수를 하나만 쓰면 다섯 항목에 똑같이, 안 쓰면 3점으로 등록됩니다.</p>
     <label class="field"><span class="label">명단</span><textarea id="bulkText" placeholder="김민수 4 3.5 2.5 3 3 사이드&#10;이준호 2.5 3 4 3.5 4 수비&#10;박지훈 3"></textarea></label>
     <div id="bulkPrev" class="small muted">0명 인식됨</div>
     <button class="btn primary big" type="submit">등록</button></form></div>`;
@@ -1474,7 +1474,7 @@ function reasonHtml(o,st){
 const BIB_COL=["var(--bib1)","var(--bib2)","var(--bib3)","var(--bib4)","var(--bib5)","var(--bib6)"];
 let radarHidden=new Set();
 function radarHtml(st){
-  // 축: 슈터·드리블러·패스마스터·수비력·활동량·종합 (육각형)
+  // 축: 결정력·드리블러·연계능력·수비력·활동량·종합 (육각형)
   const axes=[...AREAS.map(([k,l])=>[l,s=>s[k]]),["종합",s=>s.avg]];
   const vals=st.map(s=>axes.map(([,f])=>f(s)));
   const sk=vals.flat();
@@ -1493,11 +1493,11 @@ function radarHtml(st){
       v.map((x,i)=>{const [px,py]=pt(i,frac(i,x));return `<circle cx="${px}" cy="${py}" r="3.2" fill="${BIB_COL[ti%6]}"/>`;}).join("");}).join("");
   const lg=st.map((s,ti)=>`<button type="button" data-radar="${ti}" aria-pressed="${!radarHidden.has(ti)}"><i style="background:${BIB_COL[ti%6]}"></i>${BIBS[ti%6][0]} <span class="num muted">${s.avg.toFixed(2)}</span></button>`).join("");
   return `<div class="panel radar"><div class="row spread"><b>팀 능력치 비교</b><span class="small muted">눈금 ${lo.toFixed(1)}~${hi.toFixed(1)}점 확대</span></div>
-    <svg viewBox="-30 -24 380 368" role="img" aria-label="팀별 슈터·드리블러·패스마스터·수비력·활동량·종합 레이더 차트">${rings}${spokes}${ticks}${polys}${labels}</svg>
+    <svg viewBox="-30 -24 380 368" role="img" aria-label="팀별 결정력·드리블러·연계능력·수비력·활동량·종합 레이더 차트">${rings}${spokes}${ticks}${polys}${labels}</svg>
     <div class="lg">${lg}</div><span class="small muted" style="text-align:center">팀 이름을 누르면 숨기거나 다시 보여요.</span></div>`;
 }
 /* ---------- 운영진 변경 기록 ---------- */
-const AREA_KO={sht:"슈터",dri:"드리블러",pas:"패스마스터",atk:"공격력",tec:"기술",def:"수비력",sta:"활동량",phy:"피지컬",mid:"미드"};
+const AREA_KO={sht:"결정력",dri:"드리블러",pas:"연계능력",atk:"공격력",tec:"기술",def:"수비력",sta:"활동량",phy:"피지컬",mid:"미드"};
 function fmtWhen(t){const d=new Date(t);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;}
 function logLine(l){
   const who=`<b>${esc(l.by||"이름 없음")}</b>`,nm=`<b>${esc(l.name||"")}</b>`;
