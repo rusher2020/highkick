@@ -174,7 +174,7 @@
     try {
       alertBox("백업 파일을 만드는 중…");
       const out = { exportedAt: new Date().toISOString() };
-      for (const col of ["members", "matches", "games", "weeks", "state", "public", "logs"]) {
+      for (const col of ["members", "matches", "games", "weeks", "lineups", "state", "public", "logs"]) {
         const snap = await fs.collection(col).get();
         out[col] = {}; snap.forEach(function (d) { out[col][d.id] = d.data(); });
       }
