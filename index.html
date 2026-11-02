@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1793580893"></script>
-<script src="adapter.js?v=1793580893"></script>
+<script src="config.js?v=1793589494"></script>
+<script src="adapter.js?v=1793589494"></script>
 <script>
 (function(){
 "use strict";
@@ -884,16 +884,16 @@ function renderAll(){renderMake();renderPlay();renderMembers();renderRecords();}
 function closeSheet(){$("#sheetRoot").innerHTML="";}
 function openEdit(m){
   const isNew=!m;m=norm(m||{name:"",score:3,adj:0,active:true});
-  const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;let rEditing=isNew;
+  const v=Object.fromEntries(AREAS.map(([k])=>[k,m[k]]));let confirmDel=false;let by=me();let tall=!!m.tall;let rEditing=false;
   let pos=m.pos,posTouched=!!m.posSet2,pos2=[...(m.pos2||[])],photo=m.photo||"",gk11=!!m.gk11,pref11=[...(m.pref11||[])];
   const orig={name:m.name,...v,tall,pos:m.pos,pos2:pos2.join(","),active:m.active!==false,injured:!!m.injured,foot:m.foot||"",score:m.score};let foot=m.foot||"";
   const avg=()=>overallOf(v,pos);
-  const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
+  const draw=()=>{const _top=($("#editForm")||{}).scrollTop||0;queueMicrotask(()=>{const f=$("#editForm");if(f)f.scrollTop=_top;});$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="editForm" aria-label="회원 정보">
     <div class="row spread"><h2>${isNew?"회원 추가":"회원 수정"}</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <div class="row" style="gap:12px;flex-wrap:nowrap;align-items:flex-end">${photo?`<img class="av" src="${photo}" alt="${esc(m.name)} 사진 크게 보기" data-zoomsrc="${photo}" data-zoomname="${esc(m.name)}" style="width:64px;height:64px;cursor:zoom-in;--tc:var(--t${tierOf(m.score).k})">`:`<span class="av" style="width:64px;height:64px;display:grid;place-items:center;color:var(--muted);font-size:.7rem">사진 없음</span>`}
       <label class="field" style="flex:1;min-width:0"><span class="label">이름</span><input type="text" id="fName" value="${esc(m.name)}" required maxlength="20"></label></div>
     <div class="row" style="gap:6px"><label class="btn small" style="cursor:pointer">${photo?"사진 바꾸기":"사진 넣기"}<input type="file" id="fPhoto" accept="image/*" hidden></label>${photo?`<button type="button" class="btn ghost small" id="fPhotoDel">사진 지우기</button>`:""}<span class="small muted">가운데를 정사각형으로 잘라 저장해요</span></div>
-    <div class="field"><div class="row spread"><span class="label">능력치</span><button type="button" class="btn small ${rEditing?"primary":""}" id="rToggle">${rEditing?"수정 완료":"능력치 수정"}</button></div>${radarEdit(v,orig,pos,rEditing)}</div>
+    <div class="field"><span class="label">능력치 <span style="font-weight:400">(아래 −/+ 또는 슬라이더로 조절)</span></span>${radarEdit(v,orig,pos,false)}</div>
     <details class="panel" style="padding:10px 12px" open><summary style="cursor:pointer;font-weight:700;font-size:.88rem">숫자로 조절 (0.1 단위)</summary><div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
     ${statRows(v,"m")}
     </div></details>
@@ -918,7 +918,8 @@ function openEdit(m){
   </form></div>`;
   $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};
   $("#cx").onclick=closeSheet;
-  const setStat=(k,val,redraw)=>{v[k]=Math.max(1,Math.min(5,r1(val)));if(!posTouched)pos=suggestPos(v);const t=document.getElementById("sv_m_"+k);if(t){t.textContent=v[k].toFixed(1);t.style.color=`var(--t${tierOf(v[k]).k})`;}
+  const setStat=(k,val,redraw)=>{v[k]=Math.max(1,Math.min(5,r1(val)));const op=pos;if(!posTouched)pos=suggestPos(v);redraw=redraw&&pos!==op;
+    const rg=document.querySelector(`[data-mrng="${k}"]`);if(rg&&+rg.value!==v[k])rg.value=v[k];const t=document.getElementById("sv_m_"+k);if(t){t.textContent=v[k].toFixed(1);t.style.color=`var(--t${tierOf(v[k]).k})`;}
     const g=$("#rDyn");if(g)g.innerHTML=rDyn(v,-1,rEditing);const sm=$("#rSum");if(sm)sm.innerHTML=rSum(v,pos);if(redraw){keepForm();draw();}};
   document.querySelectorAll("[data-mstep]").forEach(b=>b.onclick=()=>{const [k,d]=b.dataset.mstep.split(":");setStat(k,v[k]+(+d)*.1,true);});
   document.querySelectorAll("[data-mrng]").forEach(r=>{r.oninput=()=>setStat(r.dataset.mrng,+r.value,false);r.onchange=()=>setStat(r.dataset.mrng,+r.value,true);});
@@ -928,7 +929,7 @@ function openEdit(m){
   const fp=$("#fPhoto");if(fp)fp.onchange=()=>{const f=fp.files&&fp.files[0];if(!f)return;keepForm();const rd=new FileReader();rd.onload=()=>squareJpeg(rd.result,u=>{photo=u;draw();});rd.readAsDataURL(f);};
   const fpd=$("#fPhotoDel");if(fpd)fpd.onclick=()=>{keepForm();photo="";draw();};
   const rt=$("#rToggle");if(rt)rt.onclick=()=>{keepForm();rEditing=!rEditing;draw();};
-  const svg=$("#rEdit");if(svg&&rEditing){let ax=-1;
+  const svg=null;if(svg&&rEditing){let ax=-1;
     const loc=e=>{const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return [vb.x+(e.clientX-r.left)/r.width*vb.width,vb.y+(e.clientY-r.top)/r.height*vb.height];};
     const setFrom=(x,y,pick)=>{const dx=x-RE.C,dy=y-RE.C;
       if(pick){const a=Math.atan2(dy,dx);let bd=9;for(let i=0;i<AREAS.length;i++){let d=Math.abs(a-RE.ang(i));d=Math.min(d,2*Math.PI-d);if(d<bd){bd=d;ax=i;}}}
@@ -1164,7 +1165,7 @@ function openGuestEdit(id){
   const g=guests.find(x=>x.id===id);if(!g)return;
   const v=Object.fromEntries(AREAS.map(([k])=>[k,g[k]||3]));let rated=!!g.rated,name=g.name,tall=!!g.tall;
   const avg=()=>overallOf(v,suggestPos(v));
-  const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="gEdit">
+  const draw=()=>{const _top=($("#gEdit")||{}).scrollTop||0;queueMicrotask(()=>{const f=$("#gEdit");if(f)f.scrollTop=_top;});$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="gEdit">
     <div class="row spread"><h2>용병 정보</h2><button type="button" class="btn ghost small" id="cx">닫기</button></div>
     <label class="field"><span class="label">이름</span><input type="text" id="gName2" value="${esc(name)}" maxlength="20"></label>
     <div class="field"><span class="label">능력치</span><div class="seg"><button type="button" data-rt="0" aria-pressed="${!rated}">모름 (무작위 배치)</button><button type="button" data-rt="1" aria-pressed="${rated}">입력 (밸런스에 반영)</button></div></div>
