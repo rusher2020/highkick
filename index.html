@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794354104"></script>
-<script src="adapter.js?v=1794354104"></script>
+<script src="config.js?v=1794354880"></script>
+<script src="adapter.js?v=1794354880"></script>
 <script>
 (function(){
 "use strict";
@@ -2100,19 +2100,26 @@ async function sharePng(dateStr,teams){
 }
 // 이미지 미리보기 → 공유하기(카카오톡 등 다른 앱) / 저장하기
 function imageSheet(blob,fname,title){
-  const url=URL.createObjectURL(blob),file=new File([blob],fname,{type:"image/png"});
+  // 파일 이름은 영문으로 (일부 폰·앱이 한글 파일 이름을 "지원하지 않는 형식"으로 거부함)
+  const safe=fname.replace("하이킥_팀편성_","highkick_teams_").replace("하이킥_11인라인업_","highkick_lineup11_").replace(/[^\w.\-]/g,"_");
+  const file=new File([blob],safe,{type:"image/png"});
   const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
-  const inApp=/KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent);
+  const inApp=/KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent),isKakao=/KAKAOTALK/i.test(navigator.userAgent);
+  const rd=new FileReader();rd.onload=()=>{const dataUrl=rd.result; // 길게 눌러 저장이 되도록 data 주소 사용
   $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet"><div class="row spread"><h2>${esc(title)}</h2><button class="btn ghost small" id="cx">닫기</button></div>
-    <img src="${url}" alt="${esc(title)}" style="width:100%;border-radius:12px;border:1px solid var(--line)">
-    <div class="row" style="flex-wrap:nowrap">${canShare?`<button class="btn primary big" id="imgShare" style="flex:2">공유하기 (카카오톡 등)</button>`:""}<button class="btn big${canShare?"":" primary"}" id="imgSave" style="flex:1">저장하기</button></div>
-    <p class="small muted" style="margin:0">${canShare?"공유하기를 누르면 카카오톡·문자·밴드 등 보낼 앱을 고를 수 있어요.":inApp?"카카오톡 안에서는 공유·저장이 막혀 있어요. 이미지를 길게 눌러 저장하거나, 오른쪽 위 ⋮ → 다른 브라우저로 열기 후 공유해 주세요.":"이 브라우저는 바로 공유를 지원하지 않아요. 저장한 뒤 카카오톡에서 보내거나, 이미지를 길게 눌러 공유해 주세요."}</p></div></div>`;
-  const close=()=>{closeSheet();URL.revokeObjectURL(url);};
-  $("#scrim").onclick=e=>{if(e.target.id==="scrim")close();};$("#cx").onclick=close;
-  const sh=$("#imgShare");if(sh)sh.onclick=async()=>{try{await navigator.share({files:[file],title:"하이킥FC"});}catch(e){if(e&&e.name!=="AbortError")toast("공유하지 못했어요. 저장하기를 눌러 주세요");}};
-  $("#imgSave").onclick=async()=>{let dl=null;try{dl=await claude.use("downloads");}catch(e){}
-    if(dl){try{await dl.save({filename:fname,data:blob});toast("이미지를 저장했어요");return;}catch(e){if(e&&e.code==="declined")return;}}
-    try{const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();toast("이미지를 저장했어요");}catch(e){toast("이미지를 길게 눌러 저장해 주세요");}};
+    <img src="${dataUrl}" alt="${esc(title)}" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+    ${inApp?`<div class="notice small">카카오톡 안에서 연 화면이라 바로 공유·저장이 막혀 있어요. <b>이미지를 길게 눌러 저장</b>하거나, 아래 버튼으로 크롬·삼성 인터넷에서 열어 공유하세요.</div>
+      <div class="row" style="flex-wrap:nowrap">${isKakao?`<button class="btn primary big" id="openExt" style="flex:1">다른 브라우저로 열기</button>`:""}</div>`
+    :`<div class="row" style="flex-wrap:nowrap">${canShare?`<button class="btn primary big" id="imgShare" style="flex:2">공유하기 (카카오톡 등)</button>`:""}<button class="btn big${canShare?"":" primary"}" id="imgSave" style="flex:1">저장하기</button></div>
+    <p class="small muted" style="margin:0">${canShare?"공유하기를 누르면 카카오톡·문자·밴드 등 보낼 앱을 고를 수 있어요. 안 되면 저장한 뒤 카카오톡에서 사진으로 보내 주세요.":"이 브라우저는 바로 공유를 지원하지 않아요. 저장한 뒤 카카오톡에서 보내거나, 이미지를 길게 눌러 공유해 주세요."}</p>`}</div></div>`;
+  $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
+  const oe=$("#openExt");if(oe)oe.onclick=()=>{location.href="kakaotalk://web/openExternal?url="+encodeURIComponent(location.href.split("#")[0]);};
+  const sh=$("#imgShare");if(sh)sh.onclick=async()=>{try{await navigator.share({files:[file]});}catch(e){if(e&&e.name==="AbortError")return;
+    try{await navigator.share({files:[new File([blob],"highkick.png",{type:"image/png"})]});}catch(e2){if(e2&&e2.name!=="AbortError")toast("공유하지 못했어요. 저장하기를 눌러 주세요");}}};
+  const sv=$("#imgSave");if(sv)sv.onclick=async()=>{let dl=null;try{dl=await claude.use("downloads");}catch(e){}
+    if(dl){try{await dl.save({filename:safe,data:blob});toast("이미지를 저장했어요");return;}catch(e){if(e&&e.code==="declined")return;}}
+    try{const a=document.createElement("a");a.href=dataUrl;a.download=safe;document.body.appendChild(a);a.click();a.remove();toast("이미지를 저장했어요");}catch(e){toast("이미지를 길게 눌러 저장해 주세요");}};
+  };rd.readAsDataURL(blob);
 }
 /* ---------- 사진 확대 보기 ---------- */
 function zoomPhoto(src,name,m){

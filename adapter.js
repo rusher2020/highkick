@@ -265,11 +265,7 @@ body.locked .band .stats,body.locked .band .nextm{display:none}
       // 카카오톡·인스타 등 앱 안 브라우저는 파일 저장이 안 됨 → 화면에 이미지를 띄워 길게 눌러 저장하게 함
       if (/KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent)) throw { code: "unavailable" };
       const blob = req.data instanceof Blob ? req.data : new Blob([req.data]);
-      const file = new File([blob], req.filename, { type: blob.type || "image/png" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: req.filename }); return { status: "saved" }; }
-        catch (e) { if (e && e.name === "AbortError") throw { code: "declined" }; }
-      }
+      // 저장하기는 파일로 바로 내려받기 (공유는 앱의 '공유하기' 버튼이 따로 담당)
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob); a.download = req.filename;
       document.body.appendChild(a); a.click(); a.remove();
