@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794292517"></script>
-<script src="adapter.js?v=1794292517"></script>
+<script src="config.js?v=1794292816"></script>
+<script src="adapter.js?v=1794292816"></script>
 <script>
 (function(){
 "use strict";
@@ -320,7 +320,8 @@ let attend=new Set();
 let guests=[];
 let pairW=new Map();
 let pairs=[]; // 같은 팀으로 묶을 짝 [{a,b}] (상위-하위 멘토 묶기)
-let aparts=[]; // 같은 팀이 되면 안 되는 짝 [{a,b}]
+let aparts=[]; // 서로 다른 팀으로 찢어질 묶음 [{ids:[...]}] (예전 형식 {a,b}도 읽음)
+const apIds=p=>p.ids||[p.a,p.b];
 let logs=[];
 let pubNext=null; // 회원 공개용 다음 경기 안내 (이름만, 점수 없음)
 async function savePublic(teams,matchId){
@@ -479,11 +480,13 @@ function buildPairW(){
   });
 }
 function activePairs(){return pairs.filter(p=>attend.has(p.a)&&attend.has(p.b));}
-function activeAparts(){return aparts.filter(p=>attend.has(p.a)&&attend.has(p.b));}
+function activeAparts(){return aparts.map(p=>apIds(p).filter(id=>attend.has(id))).filter(g=>g.length>=2);}
 function pairCost(teams){const ap=activePairs();if(!ap.length)return 0;const where=new Map();teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
   let c=0;for(const p of ap)if(where.get(p.a)!==where.get(p.b))c++;return c*1000;}
-function apartCost(teams){const aa=activeAparts();if(!aa.length)return 0;const where=new Map();teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
-  let c=0;for(const p of aa)if(where.get(p.a)===where.get(p.b))c++;return c*1000;}
+// 찢어지기 묶음: 한 팀에 같은 묶음 사람이 몰리지 않게 (팀 수보다 많으면 최대한 고르게)
+function apartViol(teams){const aa=activeAparts();if(!aa.length)return 0;const where=new Map();teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
+  let v=0;for(const g of aa){const cnt=new Map();g.forEach(id=>{const t=where.get(id);cnt.set(t,(cnt.get(t)||0)+1);});const lim=Math.ceil(g.length/teams.length);cnt.forEach(c=>{if(c>lim)v+=c-lim;});}return v;}
+function apartCost(teams){return apartViol(teams)*1000;}
 function overlap(teams){let o=0;if(!pairW.size)return 0;
   for(const t of teams){const ids=t.filter(m=>!m.guest).map(m=>m.id);for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)o+=pairW.get(pk(ids[i],ids[j]))||0;}
   return o;}
@@ -650,10 +653,10 @@ function renderMake(){
       return `<div class="chip" style="${on?"":"opacity:.45"}">${tierHtml(a.score)}<span class="nm">${esc(a.name)} + ${esc(b.name)}</span><button class="gx" data-rmpair="${i}" aria-label="짝 풀기">✕</button></div>`;}).join("")}</div>
       <span class="small muted">둘 다 출석한 짝만 같은 팀으로 묶여요. 흐린 짝은 오늘 쉬는 짝입니다.</span>`:`<span class="small muted">상위 회원과 하위 회원을 짝지어 두면 항상 같은 팀으로 배치해요.</span>`}
     <div style="border-top:1px dashed var(--line);margin:2px 0"></div>
-    <div class="row spread"><b>같은 팀 안 되게 <span class="num">${activeAparts().length}</span></b><button class="btn small" id="addApart">짝 추가</button></div>
-    ${aparts.length?`<div class="chips" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${aparts.map((p,i)=>{const a=byId(p.a),b=byId(p.b);if(!a||!b)return "";const on=attend.has(p.a)&&attend.has(p.b);
-      return `<div class="chip" style="${on?"":"opacity:.45"};border-color:var(--bad)">${tierHtml(a.score)}<span class="nm">${esc(a.name)} ↔ ${esc(b.name)}</span><button class="gx" data-rmapart="${i}" aria-label="짝 풀기">✕</button></div>`;}).join("")}</div>
-      <span class="small muted">둘 다 출석하면 반드시 다른 팀으로 나눠요.</span>`:`<span class="small muted">에이스끼리, 또는 같이 두면 안 되는 두 사람을 고르면 항상 다른 팀으로 나눠요.</span>`}
+    <div class="row spread"><b>안 만나기 (각자 다른 팀) <span class="num">${activeAparts().length}</span></b><button class="btn small" id="addApart">묶음 추가</button></div>
+    ${aparts.length?`<div style="display:flex;flex-direction:column;gap:6px">${aparts.map((p,i)=>{const ms=apIds(p).map(byId).filter(Boolean);if(ms.length<2)return "";const on=ms.filter(m=>attend.has(m.id)).length;
+      return `<div class="chip" style="${on>=2?"":"opacity:.45"};border-color:var(--bad);align-items:flex-start"><span class="nm" style="white-space:normal;line-height:1.5">${ms.map(m=>`<span style="${attend.has(m.id)?"":"opacity:.5"}">${esc(m.name)}</span>`).join(" ↔ ")} <span class="small muted">${ms.length}명 각자</span></span><button class="gx" data-rmapart="${i}" aria-label="묶음 풀기">✕</button></div>`;}).join("")}</div>
+      <span class="small muted">출석한 사람끼리는 모두 다른 팀으로 찢어져요. 팀 수보다 많으면 최대한 고르게 나눠요.</span>`:`<span class="small muted">저티어끼리, 에이스끼리처럼 여러 명을 고르면 각자 다른 팀으로 찢어서 배치해요.</span>`}
   </div>
   <div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b>용병 <span class="num">${guests.length}</span>명</b><span class="small muted">눌러서 능력치 입력 · 모르면 무작위</span></div>
@@ -1065,7 +1068,7 @@ document.addEventListener("click",e=>{
   if(b.id==="allOn"){members.filter(m=>m.active!==false).forEach(m=>attend.add(m.id));options=[];renderMake();saveAttend();return;}
   if(b.dataset.gedit)return openGuestEdit(b.dataset.gedit);
   if(b.id==="addPair")return openPairPicker("together");
-  if(b.id==="addApart")return openPairPicker("apart");
+  if(b.id==="addApart")return openApartPicker();
   if(b.dataset.rmapart){aparts=aparts.filter((_,i)=>i!==+b.dataset.rmapart);saveAparts();options=[];renderMake();return;}
   if(b.id==="openLogs")return openLogs();
   if(b.dataset.day!==undefined){const d=new Date();d.setDate(d.getDate()+(+b.dataset.day));matchDate=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");saveAttend();renderMake();return;}
@@ -1677,12 +1680,28 @@ async function deleteSelected(){
   for(const id of ids){const m=byId(id);if(!m)continue;
     try{await db.doc("members/"+id).delete();addLog({kind:"delete",memberId:id,name:m.name});attend.delete(id);ok++;}catch(e){dbErr(e);break;}}
   if(ok){saveAttend();options=[];const np=pairs.filter(p=>!ids.includes(p.a)&&!ids.includes(p.b));if(np.length!==pairs.length){pairs=np;savePairs();}
-    const na=aparts.filter(p=>!ids.includes(p.a)&&!ids.includes(p.b));if(na.length!==aparts.length){aparts=na;saveAparts();}}
+    const na=aparts.map(p=>({ids:apIds(p).filter(x=>!ids.includes(x))})).filter(p=>p.ids.length>=2);aparts=na;saveAparts();}
   delSel=new Set();delMode=false;memberOrder=null;renderMembers();if(ok)toast(`${ok}명을 삭제했어요`);
 }
 /* ---------- 같은 팀 묶기 ---------- */
 async function savePairs(){if(!db)return;try{await db.doc("state/pairs").set({list:pairs});}catch(e){dbErr(e);}}
 async function saveAparts(){if(!db)return;try{await db.doc("state/aparts").set({list:aparts});}catch(e){dbErr(e);}}
+function openApartPicker(){
+  const sel=new Set();const pool=members.filter(m=>m.active!==false).sort((x,y)=>eff(x)-eff(y)||x.name.localeCompare(y.name,"ko"));
+  const tog=(x,y)=>pairs.some(p=>(p.a===x&&p.b===y)||(p.a===y&&p.b===x));
+  const draw=()=>{const ids=[...sel],clash=ids.some((x,i)=>ids.slice(i+1).some(y=>tog(x,y)));
+    $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet">
+    <div class="row spread"><h2>각자 다른 팀으로</h2><button class="btn ghost small" id="cx">닫기</button></div>
+    <p class="small muted" style="margin:0">서로 만나지 않게 할 사람을 2명 이상 고르세요. 낮은 티어부터 보여요.</p>
+    <div class="chips">${pool.map(m=>`<button type="button" class="chip" data-apk="${m.id}" aria-pressed="${sel.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}</span>${attend.has(m.id)?"":`<span class="small muted">불참</span>`}</button>`).join("")}</div>
+    ${clash?`<div class="notice small" style="color:var(--bad)">고른 사람 중에 "같은 팀 묶기" 짝이 있어요. 묶기를 먼저 풀어 주세요.</div>`:""}
+    <button class="btn primary big" id="apOk" ${sel.size>=2&&!clash?"":"disabled"}>${sel.size>=2?`${sel.size}명 각자 다른 팀으로`:"2명 이상 골라 주세요"}</button></div></div>`;
+    $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
+    document.querySelectorAll("[data-apk]").forEach(x=>x.onclick=()=>{const sc=$("#scrim .sheet").scrollTop;const id=x.dataset.apk;sel.has(id)?sel.delete(id):sel.add(id);draw();$("#scrim .sheet").scrollTop=sc;});
+    $("#apOk").onclick=()=>{if(sel.size<2)return;aparts.push({ids:[...sel]});saveAparts();options=[];closeSheet();renderMake();toast(`${sel.size}명을 각자 다른 팀으로 나눠요`);};
+  };
+  draw();
+}
 function openPairPicker(kind){
   let a=null,b=null;const apart=kind==="apart";
   const pool=members.filter(m=>m.active!==false);
@@ -1717,7 +1736,7 @@ function reasonHtml(o,st){
     ck(!minT.length,minT.length?`최소 포지션 부족: ${minT.join(" / ")} (그 포지션 선수가 모자라요. 가능 포지션을 등록해 주세요)`:"팀마다 사이드 · 중앙 · 수비 최소 1명씩"),
     (shortT.length?ck(null,`2-1-2 대형까지는 부족(권장 사항): ${shortT.join(" / ")} (가능 포지션을 등록하면 채워져요)`):ck(true,"팀마다 2-1-2 대형까지 채움 (사이드 2 · 중앙 1 · 수비 2 + 골키퍼 등 자유 1)")),
     ap.length?ck(pairOk===ap.length,`같은 팀 묶기 ${ap.length}짝 중 ${pairOk}짝 지킴`):ck(null,"같은 팀 묶기 없음"),
-    (()=>{const aa=activeAparts(),okN=aa.filter(p=>where.get(p.a)!==where.get(p.b)).length;return aa.length?ck(okN===aa.length,`같은 팀 안 되게 ${aa.length}짝 중 ${okN}짝 지킴`):"";})()].join("");
+    (()=>{const aa=activeAparts();if(!aa.length)return "";const v=apartViol(o.teams);return ck(v===0,`각자 다른 팀 ${aa.length}묶음 (${aa.reduce((x,g)=>x+g.length,0)}명) ${v?`· ${v}명 겹침 (팀 수보다 많거나 다른 조건과 충돌)`:"모두 지킴"}`);})()].join("");
   // ② 지표별 비교 표
   const rows=[
     ["팀 전력 평균",st.map(s=>s.avg),2,.1,.2],
