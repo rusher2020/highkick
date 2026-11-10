@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1793589494"></script>
-<script src="adapter.js?v=1793589494"></script>
+<script src="config.js?v=1794292517"></script>
+<script src="adapter.js?v=1794292517"></script>
 <script>
 (function(){
 "use strict";
@@ -320,6 +320,7 @@ let attend=new Set();
 let guests=[];
 let pairW=new Map();
 let pairs=[]; // 같은 팀으로 묶을 짝 [{a,b}] (상위-하위 멘토 묶기)
+let aparts=[]; // 같은 팀이 되면 안 되는 짝 [{a,b}]
 let logs=[];
 let pubNext=null; // 회원 공개용 다음 경기 안내 (이름만, 점수 없음)
 async function savePublic(teams,matchId){
@@ -478,8 +479,11 @@ function buildPairW(){
   });
 }
 function activePairs(){return pairs.filter(p=>attend.has(p.a)&&attend.has(p.b));}
+function activeAparts(){return aparts.filter(p=>attend.has(p.a)&&attend.has(p.b));}
 function pairCost(teams){const ap=activePairs();if(!ap.length)return 0;const where=new Map();teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
   let c=0;for(const p of ap)if(where.get(p.a)!==where.get(p.b))c++;return c*1000;}
+function apartCost(teams){const aa=activeAparts();if(!aa.length)return 0;const where=new Map();teams.forEach((t,i)=>t.forEach(m=>where.set(m.id,i)));
+  let c=0;for(const p of aa)if(where.get(p.a)===where.get(p.b))c++;return c*1000;}
 function overlap(teams){let o=0;if(!pairW.size)return 0;
   for(const t of teams){const ids=t.filter(m=>!m.guest).map(m=>m.id);for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)o+=pairW.get(pk(ids[i],ids[j]))||0;}
   return o;}
@@ -520,7 +524,7 @@ function cost(teams){
   c+=BW.tall*dev2(st.map(s=>s.tall),1)+BW.left*dev2(st.map(s=>s.left),1);
   if(formMap.size)c+=BW.recent*dev2(st.map(s=>s.rf),CTX.fsd/Math.sqrt(cd.ns))+BW.chem*chemCost(teams);
   c+=500*st.reduce((a,s)=>a+s.min.short,0); // 필수: 팀마다 사이드·중앙·수비 1명씩
-  return c+pairCost(teams)+overlap(teams)*BW.overlap;
+  return c+pairCost(teams)+apartCost(teams)+overlap(teams)*BW.overlap;
 }
 function balanceScore(teams){const cd=coreDev(teams.map(stats));return Math.max(0,Math.min(100,Math.round(100*Math.exp(-(cd.power+.4*cd.top+.4*cd.bot)/1.2))));}
 const winProb=(a,b)=>1/(1+Math.pow(10,-(a-b)/1));
@@ -642,9 +646,14 @@ function renderMake(){
   <div class="chips">${active.map(m=>`<button class="chip stripe t-${tierOf(m.score).k}" data-att="${m.id}" aria-pressed="${attend.has(m.id)}">${tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.injured?" 🩹":""}</span></button>`).join("")}</div>
   <div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b>같은 팀 묶기 <span class="num">${activePairs().length}</span></b><button class="btn small" id="addPair">짝 추가</button></div>
-    ${pairs.length?`<div class="chips" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${pairs.map((p,i)=>{const a=byId(p.a),b=byId(p.b);if(!a||!b)return "";const on=attend.has(p.a)&&attend.has(p.b);
+    ${pairs.length?`<div class="chips" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${pairs.map((p,i)=>{const a=byId(p.a),b=byId(p.b);if(!a||!b)return "";const on=attend.has(p.a)&&attend.has(p.b);
       return `<div class="chip" style="${on?"":"opacity:.45"}">${tierHtml(a.score)}<span class="nm">${esc(a.name)} + ${esc(b.name)}</span><button class="gx" data-rmpair="${i}" aria-label="짝 풀기">✕</button></div>`;}).join("")}</div>
       <span class="small muted">둘 다 출석한 짝만 같은 팀으로 묶여요. 흐린 짝은 오늘 쉬는 짝입니다.</span>`:`<span class="small muted">상위 회원과 하위 회원을 짝지어 두면 항상 같은 팀으로 배치해요.</span>`}
+    <div style="border-top:1px dashed var(--line);margin:2px 0"></div>
+    <div class="row spread"><b>같은 팀 안 되게 <span class="num">${activeAparts().length}</span></b><button class="btn small" id="addApart">짝 추가</button></div>
+    ${aparts.length?`<div class="chips" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${aparts.map((p,i)=>{const a=byId(p.a),b=byId(p.b);if(!a||!b)return "";const on=attend.has(p.a)&&attend.has(p.b);
+      return `<div class="chip" style="${on?"":"opacity:.45"};border-color:var(--bad)">${tierHtml(a.score)}<span class="nm">${esc(a.name)} ↔ ${esc(b.name)}</span><button class="gx" data-rmapart="${i}" aria-label="짝 풀기">✕</button></div>`;}).join("")}</div>
+      <span class="small muted">둘 다 출석하면 반드시 다른 팀으로 나눠요.</span>`:`<span class="small muted">에이스끼리, 또는 같이 두면 안 되는 두 사람을 고르면 항상 다른 팀으로 나눠요.</span>`}
   </div>
   <div class="panel" style="display:flex;flex-direction:column;gap:10px">
     <div class="row spread"><b>용병 <span class="num">${guests.length}</span>명</b><span class="small muted">눌러서 능력치 입력 · 모르면 무작위</span></div>
@@ -1055,7 +1064,9 @@ document.addEventListener("click",e=>{
   if(b.dataset.att){const id=b.dataset.att;attend.has(id)?attend.delete(id):attend.add(id);options=[];renderMake();saveAttend();return;}
   if(b.id==="allOn"){members.filter(m=>m.active!==false).forEach(m=>attend.add(m.id));options=[];renderMake();saveAttend();return;}
   if(b.dataset.gedit)return openGuestEdit(b.dataset.gedit);
-  if(b.id==="addPair")return openPairPicker();
+  if(b.id==="addPair")return openPairPicker("together");
+  if(b.id==="addApart")return openPairPicker("apart");
+  if(b.dataset.rmapart){aparts=aparts.filter((_,i)=>i!==+b.dataset.rmapart);saveAparts();options=[];renderMake();return;}
   if(b.id==="openLogs")return openLogs();
   if(b.dataset.day!==undefined){const d=new Date();d.setDate(d.getDate()+(+b.dataset.day));matchDate=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");saveAttend();renderMake();return;}
   if(b.dataset.radar){const i=+b.dataset.radar;radarHidden.has(i)?radarHidden.delete(i):radarHidden.add(i);if($("#mStat"))openMatchStats($("#mStat").dataset.id);else renderMake();return;}
@@ -1665,25 +1676,30 @@ async function deleteSelected(){
   delConfirm=false;const ids=[...delSel];let ok=0;
   for(const id of ids){const m=byId(id);if(!m)continue;
     try{await db.doc("members/"+id).delete();addLog({kind:"delete",memberId:id,name:m.name});attend.delete(id);ok++;}catch(e){dbErr(e);break;}}
-  if(ok){saveAttend();options=[];const np=pairs.filter(p=>!ids.includes(p.a)&&!ids.includes(p.b));if(np.length!==pairs.length){pairs=np;savePairs();}}
+  if(ok){saveAttend();options=[];const np=pairs.filter(p=>!ids.includes(p.a)&&!ids.includes(p.b));if(np.length!==pairs.length){pairs=np;savePairs();}
+    const na=aparts.filter(p=>!ids.includes(p.a)&&!ids.includes(p.b));if(na.length!==aparts.length){aparts=na;saveAparts();}}
   delSel=new Set();delMode=false;memberOrder=null;renderMembers();if(ok)toast(`${ok}명을 삭제했어요`);
 }
 /* ---------- 같은 팀 묶기 ---------- */
 async function savePairs(){if(!db)return;try{await db.doc("state/pairs").set({list:pairs});}catch(e){dbErr(e);}}
-function openPairPicker(){
-  let a=null,b=null;
+async function saveAparts(){if(!db)return;try{await db.doc("state/aparts").set({list:aparts});}catch(e){dbErr(e);}}
+function openPairPicker(kind){
+  let a=null,b=null;const apart=kind==="apart";
   const pool=members.filter(m=>m.active!==false);
-  const used=new Set(pairs.flatMap(p=>[p.a,p.b]));
+  const used=new Set((apart?aparts:pairs).flatMap(p=>[p.a,p.b]));
+  const together=(x,y)=>pairs.some(p=>(p.a===x&&p.b===y)||(p.a===y&&p.b===x));
   const list=(dir,sel,key)=>[...pool].sort((x,y)=>dir*(eff(x)-eff(y))||x.name.localeCompare(y.name,"ko")).map(m=>`<button type="button" class="chip" data-pk="${key}:${m.id}" aria-pressed="${sel===m.id}" ${used.has(m.id)?'style="opacity:.45"':""}>${tierHtml(m.score)}<span class="nm">${esc(m.name)}</span>${attend.has(m.id)?"":`<span class="small muted">불참</span>`}</button>`).join("");
   const draw=()=>{$("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet">
-    <div class="row spread"><h2>같은 팀 짝 추가</h2><button class="btn ghost small" id="cx">닫기</button></div>
-    <div class="field"><span class="label">상위 회원 ${a?"· "+esc(byId(a).name):""}</span><div class="chips">${list(-1,a,"a")}</div></div>
-    <div class="field"><span class="label">함께 뛸 회원 ${b?"· "+esc(byId(b).name):""}</span><div class="chips">${list(1,b,"b")}</div></div>
-    <p class="small muted" style="margin:0">흐린 이름은 이미 다른 짝에 묶여 있어요. 한 사람이 여러 짝에 들어가면 셋 이상이 한 팀으로 묶입니다.</p>
-    <button class="btn primary big" id="pairOk" ${a&&b&&a!==b?"":"disabled"}>${a&&b&&a!==b?`${esc(byId(a).name)} + ${esc(byId(b).name)} 묶기`:"두 사람을 골라 주세요"}</button></div></div>`;
+    <div class="row spread"><h2>${apart?"같은 팀 안 되게":"같은 팀 짝 추가"}</h2><button class="btn ghost small" id="cx">닫기</button></div>
+    <div class="field"><span class="label">${apart?"첫 번째 회원":"상위 회원"} ${a?"· "+esc(byId(a).name):""}</span><div class="chips">${list(-1,a,"a")}</div></div>
+    <div class="field"><span class="label">${apart?"따로 둘 회원":"함께 뛸 회원"} ${b?"· "+esc(byId(b).name):""}</span><div class="chips">${list(apart?-1:1,b,"b")}</div></div>
+    <p class="small muted" style="margin:0">${apart?"흐린 이름은 이미 다른 떨어뜨리기 짝에 들어 있어요. 한 사람을 여러 명과 떨어뜨릴 수도 있어요.":"흐린 이름은 이미 다른 짝에 묶여 있어요. 한 사람이 여러 짝에 들어가면 셋 이상이 한 팀으로 묶입니다."}</p>
+    ${apart&&a&&b&&together(a,b)?`<div class="notice small" style="color:var(--bad)">이 두 사람은 "같은 팀 묶기"에 들어 있어요. 떨어뜨리려면 묶기를 먼저 풀어 주세요.</div>`:""}
+    <button class="btn primary big" id="pairOk" ${a&&b&&a!==b&&!(apart&&together(a,b))?"":"disabled"}>${a&&b&&a!==b?`${esc(byId(a).name)} ${apart?"↔":"+"} ${esc(byId(b).name)} ${apart?"떨어뜨리기":"묶기"}`:"두 사람을 골라 주세요"}</button></div></div>`;
     $("#scrim").onclick=e=>{if(e.target.id==="scrim")closeSheet();};$("#cx").onclick=closeSheet;
     document.querySelectorAll("[data-pk]").forEach(x=>x.onclick=()=>{const [k,id]=x.dataset.pk.split(":");const sc=$("#scrim .sheet").scrollTop;if(k==="a")a=id;else b=id;draw();$("#scrim .sheet").scrollTop=sc;});
-    $("#pairOk").onclick=()=>{if(!(a&&b&&a!==b))return;if(!pairs.some(p=>(p.a===a&&p.b===b)||(p.a===b&&p.b===a)))pairs.push({a,b});savePairs();options=[];closeSheet();renderMake();toast("짝을 묶었어요");};
+    $("#pairOk").onclick=()=>{if(!(a&&b&&a!==b))return;const L=apart?aparts:pairs;if(!L.some(p=>(p.a===a&&p.b===b)||(p.a===b&&p.b===a)))L.push({a,b});
+      if(apart)saveAparts();else savePairs();options=[];closeSheet();renderMake();toast(apart?"두 사람을 다른 팀으로 나눠요":"짝을 묶었어요");};
   };
   draw();
 }
@@ -1700,7 +1716,8 @@ function reasonHtml(o,st){
   const must=[ck(sizeOk,`팀 인원 ${sizes.join(" · ")}명 (차이 1명 이내)`),
     ck(!minT.length,minT.length?`최소 포지션 부족: ${minT.join(" / ")} (그 포지션 선수가 모자라요. 가능 포지션을 등록해 주세요)`:"팀마다 사이드 · 중앙 · 수비 최소 1명씩"),
     (shortT.length?ck(null,`2-1-2 대형까지는 부족(권장 사항): ${shortT.join(" / ")} (가능 포지션을 등록하면 채워져요)`):ck(true,"팀마다 2-1-2 대형까지 채움 (사이드 2 · 중앙 1 · 수비 2 + 골키퍼 등 자유 1)")),
-    ap.length?ck(pairOk===ap.length,`같은 팀 묶기 ${ap.length}짝 중 ${pairOk}짝 지킴`):ck(null,"같은 팀 묶기 없음")].join("");
+    ap.length?ck(pairOk===ap.length,`같은 팀 묶기 ${ap.length}짝 중 ${pairOk}짝 지킴`):ck(null,"같은 팀 묶기 없음"),
+    (()=>{const aa=activeAparts(),okN=aa.filter(p=>where.get(p.a)!==where.get(p.b)).length;return aa.length?ck(okN===aa.length,`같은 팀 안 되게 ${aa.length}짝 중 ${okN}짝 지킴`):"";})()].join("");
   // ② 지표별 비교 표
   const rows=[
     ["팀 전력 평균",st.map(s=>s.avg),2,.1,.2],
@@ -1971,6 +1988,7 @@ renderAll();
   db.collection("logs").orderBy("at","desc").limit(200).onSnapshot(s=>{logs=s.docs.map(d=>({id:d.id,...d.data()}));if(document.getElementById("logList"))renderLogList();},e=>{});
   db.doc("public/next").onSnapshot(s=>{pubNext=s.exists?s.data():null;},e=>{});
   db.doc("state/pairs").onSnapshot(s=>{pairs=s.exists?(s.data().list||[]):[];renderMake();},e=>{});
+  db.doc("state/aparts").onSnapshot(s=>{aparts=s.exists?(s.data().list||[]):[];renderMake();},e=>{});
   db.doc("state/attendance").onSnapshot(s=>{const d=s.exists?s.data():null;
     if(d&&!attendTimer&&d.matchDate)matchDate=d.matchDate;if(d&&!attendTimer)matchTime=d.matchTime||"";
     if(d){const nw=new Set(d.ids||[]);const same=nw.size===attend.size&&[...nw].every(x=>attend.has(x));if(!attendTimer){const ng=d.guests||[];const gsame=ng.length===guests.length&&ng.every((g,i)=>g.id===guests[i].id);
