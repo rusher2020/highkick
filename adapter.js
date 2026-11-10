@@ -42,8 +42,8 @@
     const main = document.getElementById("main") || document.querySelector("main"), tabs = document.querySelector(".tabs");
     if (!main) return;
     let lock = document.getElementById("lockPanel");
-    if (isAdmin || !configured) { if (lock) lock.remove(); main.hidden = false; if (tabs) tabs.hidden = false; return; }
-    main.hidden = true; if (tabs) tabs.hidden = true;
+    if (isAdmin || !configured) { if (lock) lock.remove(); main.hidden = false; if (tabs) tabs.hidden = false; document.body.classList.remove("locked"); return; }
+    main.hidden = true; if (tabs) tabs.hidden = true; document.body.classList.add("locked");
     if (!lock) {
       lock = document.createElement("div"); lock.id = "lockPanel"; lock.className = "wrap";
       lock.innerHTML = '<section class="view" id="pubView"><div class="empty">다음 경기 정보를 불러오는 중…</div></section>';
@@ -73,34 +73,85 @@
   }
   let lastPub = null;
   setInterval(function () { if (lastPub && document.getElementById("pubView")) renderPublic(lastPub); }, 60000);
+  // 공개 화면 전용 꾸밈
+  (function () {
+    if (document.getElementById("pubCss")) return;
+    const st = document.createElement("style"); st.id = "pubCss";
+    st.textContent = `
+body.locked .band .stats,body.locked .band .nextm{display:none}
+#pubView{gap:14px}
+.pv-hero{position:relative;overflow:hidden;border-radius:22px;padding:22px 20px 18px;color:#F3F7F1;background:linear-gradient(160deg,#1F6B41 0%,#154A2D 55%,#0F3721 100%);box-shadow:0 14px 30px -18px rgba(10,40,22,.7)}
+.pv-hero:before{content:"";position:absolute;right:-70px;top:-70px;width:220px;height:220px;border-radius:50%;border:2px solid rgba(255,255,255,.12)}
+.pv-kick{font-size:.78rem;letter-spacing:.14em;opacity:.75;font-weight:700}
+.pv-date{font-family:var(--f-display);font-size:2.1rem;line-height:1.1;margin:6px 0 2px}
+.pv-time{font-size:1rem;font-weight:600;opacity:.92}
+.pv-cd{display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:#F5C542;color:#14211A;border-radius:999px;padding:6px 14px;font-weight:800;font-size:.95rem}
+.pv-cd.live{background:#FF6B57;color:#fff}.pv-cd.done{background:rgba(255,255,255,.18);color:#fff}
+.pv-dd{position:absolute;right:18px;top:18px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:14px;padding:8px 12px;font:800 1.1rem var(--f-num)}
+.pv-stats{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;position:relative;z-index:1}
+.pv-stats span{background:rgba(255,255,255,.12);border-radius:12px;padding:6px 10px;font-size:.84rem}
+.pv-stats b{font:800 1.05rem var(--f-num);margin-right:2px}
+.pv-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pv-team{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 6px 16px -12px rgba(0,0,0,.35)}
+.pv-team header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;color:#fff;font-weight:800;font-family:var(--f-display);font-size:1.15rem}
+.pv-team header small{font:600 .78rem var(--f-body);opacity:.9}
+.pv-team ol{list-style:none;margin:0;padding:4px 12px 10px;counter-reset:n}
+.pv-team li{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font-weight:600;font-size:.95rem}
+.pv-team li:last-child{border-bottom:0}
+.pv-team li:before{counter-increment:n;content:counter(n);width:20px;height:20px;border-radius:50%;background:var(--sunk);color:var(--muted);font:700 .7rem/20px var(--f-num);text-align:center;flex:none}
+.pv-team li.g{color:var(--muted);font-weight:500}
+.pv-team li .tag{margin-left:auto;font-size:.68rem;background:var(--sunk);color:var(--muted);border-radius:6px;padding:1px 6px;font-weight:600}
+.pv-sec{display:flex;align-items:baseline;justify-content:space-between;margin:4px 2px 0}
+.pv-sec h2{margin:0}
+.pv-note{font-size:.8rem;color:var(--muted);text-align:center;line-height:1.6}
+.pv-empty{text-align:center;padding:30px 18px;border:1.5px dashed var(--line);border-radius:18px;background:var(--surface)}
+.pv-empty .ic{font-size:2.2rem}
+.pv-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+@media (max-width:360px){.pv-teams{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){.pv-team{animation:pvin .35s ease-out both}.pv-team:nth-child(2){animation-delay:.06s}.pv-team:nth-child(3){animation-delay:.12s}.pv-team:nth-child(4){animation-delay:.18s}}
+@keyframes pvin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}`;
+    document.head.appendChild(st);
+  })();
+  const BIBHEX = BIBC;
   function renderPublic(pub) {
     lastPub = pub;
     const v = document.getElementById("pubView"); if (!v) return;
-    const loginBtn = '<button class="btn" id="lockLogin" style="align-self:center">🔒 운영진 로그인</button>';
+    const loginBtn = '<button class="btn ghost small" id="lockLogin">🔒 운영진 로그인</button>';
     let h = "";
     if (!pub || !pub.date) {
-      h = '<div class="panel empty" style="padding:32px 18px"><div style="font-size:2rem;line-height:1">⚽</div><strong style="margin-top:8px">다음 경기가 아직 정해지지 않았어요</strong>운영진이 경기 날짜와 팀을 정하면 여기에 나와요.</div>';
+      h = '<div class="pv-empty"><div class="ic">⚽</div><b style="display:block;margin:8px 0 4px">다음 경기가 아직 정해지지 않았어요</b><span class="small muted">운영진이 경기 날짜와 팀을 정하면 여기에 나와요.</span></div>';
     } else {
-      const dl = dateLabel(pub.date);
-      h = '<div class="panel" style="display:flex;align-items:center;gap:14px">' +
-        '<div style="flex:1;min-width:0"><div class="label">다음 경기</div><b style="font-family:var(--f-display);font-weight:400;font-size:1.5rem">' + esc(dl.text) + '</b>' +
-        (pub.time ? '<div style="font-weight:700">' + esc(timeKo(pub.time)) + ' 시작 · <span style="color:var(--accent)">' + esc(leftKo(pub.date, pub.time)) + '</span></div>' : "") +
-        '<div class="small muted">참석 <b class="num">' + (pub.count || 0) + '</b>명' + (pub.teams ? " · " + pub.teams.length + "팀" : "") + '</div></div>' +
-        '<span style="background:var(--accent);color:var(--surface);border-radius:12px;padding:8px 12px;font:700 1.05rem var(--f-num)">' + esc(dl.dd) + '</span></div>';
+      const dl = dateLabel(pub.date), left = pub.time ? leftKo(pub.date, pub.time) : "";
+      const cdCls = /경기 중/.test(left) ? " live" : /끝남/.test(left) ? " done" : "";
+      const sizes = pub.teams && pub.teams.length ? pub.teams.map(function (t) { return t.names.length; }).join("·") : "";
+      h = '<section class="pv-hero"><div class="pv-kick">하이킥FC · 다음 경기</div>' +
+        '<div class="pv-date">' + esc(dl.text) + '</div>' +
+        (pub.time ? '<div class="pv-time">' + esc(timeKo(pub.time)) + ' 킥오프</div>' : '<div class="pv-time" style="opacity:.7">시작 시간은 곧 안내돼요</div>') +
+        (left ? '<div class="pv-cd' + cdCls + '">' + (cdCls === " live" ? "🔴 " : cdCls ? "" : "⏱ ") + esc(left) + '</div>' : "") +
+        '<span class="pv-dd">' + esc(dl.dd) + '</span>' +
+        '<div class="pv-stats"><span><b>' + (pub.count || 0) + '</b>명 참석</span>' + (pub.teams ? '<span><b>' + pub.teams.length + '</b>팀</span><span>' + esc(sizes) + '</span>' : '') + '</div></section>';
       if (pub.teams && pub.teams.length) {
-        h += '<h2>팀 편성</h2><div class="teams reveal">' + pub.teams.map(function (t, i) {
-          return '<article class="team"><header><span class="bib" style="background:' + BIBC[i % 6] + '"></span><span class="t">' + (i + 1) + '팀</span><span class="avg small muted">' + t.names.length + '명</span></header>' +
-            '<ul>' + t.names.map(function (n, j) {
-              return '<li><button type="button" style="cursor:default"><span class="nm">' + esc(n) + ((t.gk || [])[j] ? " 🧤" : "") + '</span>' + ((t.guest || [])[j] ? '<span class="pos">용병</span>' : "") + '</button></li>';
-            }).join("") + '</ul></article>';
+        h += '<div class="pv-sec"><h2>팀 편성</h2><span class="small muted">조끼 색 대신 팀 번호로 불러요</span></div><div class="pv-teams">' + pub.teams.map(function (t, i) {
+          return '<article class="pv-team"><header style="background:' + BIBHEX[i % 6] + '">' + (i + 1) + '팀<small>' + t.names.length + '명</small></header><ol>' +
+            t.names.map(function (n, j) { const g = (t.guest || [])[j]; return '<li class="' + (g ? "g" : "") + '">' + esc(n) + ((t.gk || [])[j] ? " 🧤" : "") + (g ? '<span class="tag">용병</span>' : "") + '</li>'; }).join("") + '</ol></article>';
         }).join("") + '</div>';
+        h += '<div class="pv-btns"><button class="btn primary big" id="pubShare" style="flex:1;max-width:420px">📣 팀 명단 공유하기 (카톡 등)</button></div>';
+        h += '<p class="pv-note">팀은 운영진이 능력치와 포지션을 고려해 고르게 나눴어요.<br>즐겁게, 다치지 않게! 💚</p>';
       } else {
-        h += '<div class="panel empty"><strong>팀 편성 준비 중이에요</strong>운영진이 팀을 확정하면 바로 여기에 나와요.</div>';
+        h += '<div class="pv-empty"><div class="ic">🧩</div><b style="display:block;margin:8px 0 4px">팀 편성 준비 중이에요</b><span class="small muted">운영진이 팀을 확정하면 바로 여기에 나와요.</span></div>';
       }
     }
-    v.innerHTML = h + loginBtn;
+    v.innerHTML = h + '<div class="pv-btns">' + loginBtn + '</div>';
     document.getElementById("lockLogin").onclick = function () { login(); };
+    const sb = document.getElementById("pubShare");
+    if (sb) sb.onclick = async function () {
+      const dl = dateLabel(pub.date);
+      const txt = "⚽ 하이킥FC " + dl.text + (pub.time ? " " + timeKo(pub.time) : "") + " 팀 편성\n\n" + pub.teams.map(function (t, i) { return (i + 1) + "팀: " + t.names.map(function (n, j) { return n + ((t.guest || [])[j] ? "(용병)" : ""); }).join(", "); }).join("\n") + "\n\n" + location.href.split("?")[0];
+      try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+      try { await navigator.clipboard.writeText(txt); alertMsg("명단을 복사했어요. 카카오톡에 붙여 넣으세요"); } catch (e) { alertMsg("공유를 지원하지 않는 브라우저예요"); }
+    };
   }
+  function alertMsg(m) { const r = document.getElementById("toastRoot"); if (r) { r.innerHTML = '<div class="toast" role="status">' + esc(m) + '</div>'; setTimeout(function () { r.innerHTML = ""; }, 2600); } }
 
   function paintWho() {
     const b = document.getElementById("whoBtn");
