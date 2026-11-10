@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794292816"></script>
-<script src="adapter.js?v=1794292816"></script>
+<script src="config.js?v=1794293283"></script>
+<script src="adapter.js?v=1794293283"></script>
 <script>
 (function(){
 "use strict";
@@ -687,7 +687,7 @@ function renderMake(){
       <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.min.short?`<span class="pill" style="color:var(--bad)">필수 포지션 부족: ${s.min.miss}</span>`:s.form.short?`<span class="pill" style="color:var(--warn)">사이드·중앙·수비 ✓ · 2-1-2엔 ${s.form.miss} 부족</span>`:`<span class="pill" style="color:var(--good)">2-1-2 대형 ✓</span>`}</div>
       <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}${formMap.size?`<span class="pill num">최근 성적 ${Math.round(s.rf*100)}</span>`:""}</div>
       <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
-    <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 저장</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
+    <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 공유</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
   }
   v.innerHTML=h;
 }
@@ -768,7 +768,7 @@ function renderRecords(){
     ${wdlInputHtml(mt)}
     ${hasResult(mt)?`<span class="small muted">결과는 개인 능력치를 바꾸지 않고, 다음 팀을 나눌 때 "최근 성적"으로만 참고해요.</span>`:""}
     ${standHtml(mt,true)}
-    <div class="row"><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
+    <div class="row"><button class="btn small" data-mstat="${mt.id}">팀 전력</button><button class="btn small" data-png="${mt.id}">이미지 공유</button><button class="btn small" data-medit="${mt.id}">수정</button><button class="btn ghost small danger" data-delmatch="${mt.id}" style="margin-left:auto">${pendingDelete===mt.id?"한 번 더 누르면 삭제":"기록 삭제"}</button></div></article>`;
   }).join("");
 }
 let pendingDelete=null;
@@ -1544,7 +1544,7 @@ function elevenHtml(){
     <div class="panel" style="display:flex;flex-direction:column;gap:8px"><div class="row spread"><b>우리 작전 <span class="small muted" style="font-weight:400">추천 내용을 고쳐서 쓰세요</span></b><button class="btn ghost small" id="memoReset">추천으로 다시 채우기</button></div>
       <textarea id="memo11" rows="7" style="width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font:inherit;font-size:.88rem;line-height:1.6">${esc(E11.memo)}</textarea>
       <span class="small muted">라인업과 함께 저장되고, 이미지 아래쪽에도 들어가요</span></div>
-    <div class="row" style="flex-wrap:nowrap"><button class="btn" id="png11" style="flex:1">이미지 저장</button><button class="btn primary" id="save11" style="flex:2">${E11.saved?"저장한 라인업 고치기":"이 라인업 저장"}</button></div>`;
+    <div class="row" style="flex-wrap:nowrap"><button class="btn" id="png11" style="flex:1">이미지 공유</button><button class="btn primary" id="save11" style="flex:2">${E11.saved?"저장한 라인업 고치기":"이 라인업 저장"}</button></div>`;
   }
   return h;
 }
@@ -1590,12 +1590,8 @@ async function png11(L){
       if(line&&ly<=oy+ph+80)x.fillText(line,ox+4,ly);}
   });
   if(memo.length){x.fillStyle="#F3F7F1";x.font="700 30px "+BODY;x.fillText("우리 작전",50,1760);x.font="400 22px "+BODY;memo.forEach((t,i)=>x.fillText(t.slice(0,60),50,1800+i*34,W-100));}
-  const blob=await new Promise(r=>c.toBlob(r,"image/png"));const fname=`하이킥_11인라인업_${(L&&L.date)||gameDate()}.png`;
-  let dl=null;try{dl=await claude.use("downloads");}catch(e){}
-  if(dl){try{await dl.save({filename:fname,data:blob});toast("이미지를 저장했습니다");return;}catch(e){if(e&&e.code==="declined")return;}}
-  const url=URL.createObjectURL(blob);
-  $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet"><div class="row spread"><h2>11인 라인업 이미지</h2><button class="btn ghost small" id="cx">닫기</button></div><p class="small muted" style="margin:0">이미지를 길게 눌러 저장하거나 공유하세요.</p><img src="${url}" alt="11인 라인업" style="width:100%;border-radius:12px"></div></div>`;
-  $("#scrim").onclick=e=>{if(e.target.id==="scrim"){closeSheet();URL.revokeObjectURL(url);}};$("#cx").onclick=()=>{closeSheet();URL.revokeObjectURL(url);};
+  const blob=await new Promise(r=>c.toBlob(r,"image/png"));
+  imageSheet(blob,`하이킥_11인라인업_${(L&&L.date)||gameDate()}.png`,"11인 라인업 이미지");
 }
 let lineups=[],pendingL=null;
 function lineupsHtml(){
@@ -1604,7 +1600,7 @@ function lineupsHtml(){
     return `<article class="match"><div class="row spread"><b>${fmtDate(L.date)}</b><span class="badge done">${esc(L.form)}</span></div>
     <div class="small" style="line-height:1.6">${(L.quarters||[]).map((Q,qi)=>`<div><b>${qi+1}Q</b> 🧤${esc(nm(Q.lineup[0]))} · ${Q.lineup.slice(1).filter(Boolean).map(nm).map(esc).join(", ")}</div>`).join("")}</div>
     ${L.memo?`<details><summary class="small" style="cursor:pointer">작전 메모</summary><div class="small" style="white-space:pre-wrap;margin-top:4px;line-height:1.6">${esc(L.memo)}</div></details>`:""}
-    <div class="row"><button class="btn small primary" data-l11="${L.id}">열어서 고치기</button><button class="btn small" data-lpng="${L.id}">이미지</button><button class="btn ghost small danger" data-ldel="${L.id}" style="margin-left:auto">${pendingL===L.id?"한 번 더 누르면 삭제":"삭제"}</button></div></article>`;}).join("");
+    <div class="row"><button class="btn small primary" data-l11="${L.id}">열어서 고치기</button><button class="btn small" data-lpng="${L.id}">이미지 공유</button><button class="btn ghost small danger" data-ldel="${L.id}" style="margin-left:auto">${pendingL===L.id?"한 번 더 누르면 삭제":"삭제"}</button></div></article>`;}).join("");
 }
 /* ---------- 회원 티어 탭 위쪽 공통 선수 카드 ---------- */
 function radarView(v,uid){
@@ -1940,7 +1936,7 @@ async function makePng(dateStr,teams){
   const DISP='"Black Han Sans","IBM Plex Sans KR",sans-serif',BODY='"IBM Plex Sans KR","Apple SD Gothic Neo",sans-serif';
   x.fillStyle="#1D5A37";x.fillRect(0,0,W,H);
   x.strokeStyle="rgba(255,255,255,.12)";x.lineWidth=4;x.beginPath();x.arc(W,190,150,0,Math.PI*2);x.stroke();
-  x.fillStyle="#F3F7F1";x.font="64px "+DISP;x.textBaseline="alphabetic";x.fillText("하이킥",P,130);
+  x.fillStyle="#F3F7F1";x.font="64px "+DISP;x.textBaseline="alphabetic";x.fillText("하이킥FC",P,130);
   x.font="500 34px "+BODY;x.fillStyle="rgba(243,247,241,.82)";x.fillText(fmtDate(dateStr)+" 팀 편성",P,186);
   const total=teams.reduce((a,t)=>a+t.length,0);
   x.textAlign="right";x.fillText(`${teams.length}팀 · ${total}명`,W-P,186);x.textAlign="left";
@@ -1965,13 +1961,23 @@ async function makePng(dateStr,teams){
 }
 async function sharePng(dateStr,teams){
   const blob=await makePng(dateStr,teams);if(!blob){toast("이미지를 만들지 못했습니다");return;}
-  const fname=`하이킥_팀편성_${dateStr}.png`;
-  let dl=null;try{dl=await claude.use("downloads");}catch(e){}
-  if(dl){try{await dl.save({filename:fname,data:blob});toast("이미지를 저장했습니다");return;}
-    catch(e){if(e&&e.code==="declined")return;}}
-  const url=URL.createObjectURL(blob);
-  $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet"><div class="row spread"><h2>팀 편성 이미지</h2><button class="btn ghost small" id="cx">닫기</button></div><p class="small muted" style="margin:0">이미지를 길게 눌러 저장하거나 공유하세요.</p><img src="${url}" alt="팀 편성 이미지" style="width:100%;border-radius:12px"></div></div>`;
-  $("#scrim").onclick=e=>{if(e.target.id==="scrim"){closeSheet();URL.revokeObjectURL(url);}};$("#cx").onclick=()=>{closeSheet();URL.revokeObjectURL(url);};
+  imageSheet(blob,`하이킥_팀편성_${dateStr}.png`,"팀 편성 이미지");
+}
+// 이미지 미리보기 → 공유하기(카카오톡 등 다른 앱) / 저장하기
+function imageSheet(blob,fname,title){
+  const url=URL.createObjectURL(blob),file=new File([blob],fname,{type:"image/png"});
+  const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+  const inApp=/KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(navigator.userAgent);
+  $("#sheetRoot").innerHTML=`<div class="scrim" id="scrim"><div class="sheet"><div class="row spread"><h2>${esc(title)}</h2><button class="btn ghost small" id="cx">닫기</button></div>
+    <img src="${url}" alt="${esc(title)}" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+    <div class="row" style="flex-wrap:nowrap">${canShare?`<button class="btn primary big" id="imgShare" style="flex:2">공유하기 (카카오톡 등)</button>`:""}<button class="btn big${canShare?"":" primary"}" id="imgSave" style="flex:1">저장하기</button></div>
+    <p class="small muted" style="margin:0">${canShare?"공유하기를 누르면 카카오톡·문자·밴드 등 보낼 앱을 고를 수 있어요.":inApp?"카카오톡 안에서는 공유·저장이 막혀 있어요. 이미지를 길게 눌러 저장하거나, 오른쪽 위 ⋮ → 다른 브라우저로 열기 후 공유해 주세요.":"이 브라우저는 바로 공유를 지원하지 않아요. 저장한 뒤 카카오톡에서 보내거나, 이미지를 길게 눌러 공유해 주세요."}</p></div></div>`;
+  const close=()=>{closeSheet();URL.revokeObjectURL(url);};
+  $("#scrim").onclick=e=>{if(e.target.id==="scrim")close();};$("#cx").onclick=close;
+  const sh=$("#imgShare");if(sh)sh.onclick=async()=>{try{await navigator.share({files:[file],title:"하이킥FC"});}catch(e){if(e&&e.name!=="AbortError")toast("공유하지 못했어요. 저장하기를 눌러 주세요");}};
+  $("#imgSave").onclick=async()=>{let dl=null;try{dl=await claude.use("downloads");}catch(e){}
+    if(dl){try{await dl.save({filename:fname,data:blob});toast("이미지를 저장했어요");return;}catch(e){if(e&&e.code==="declined")return;}}
+    try{const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();toast("이미지를 저장했어요");}catch(e){toast("이미지를 길게 눌러 저장해 주세요");}};
 }
 /* ---------- 사진 확대 보기 ---------- */
 function zoomPhoto(src,name,m){
