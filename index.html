@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794354880"></script>
-<script src="adapter.js?v=1794354880"></script>
+<script src="config.js?v=1794354913"></script>
+<script src="adapter.js?v=1794354913"></script>
 <script>
 (function(){
 "use strict";
@@ -682,9 +682,9 @@ function renderMake(){
   if(makeMode==="eleven"){v.innerHTML=h+elevenHtml();return;}
   {const cm=confirmedOf(gameDate());if(cm){const tm=cm.teams;const T=matchTeams(cm).teams,st=T.map(stats),bs=balanceScore(T);
     h+=`<div class="panel" style="display:flex;flex-direction:column;gap:10px;border:2px solid var(--good)">
-      <div class="row spread"><b>✅ 확정된 조합 <span class="small muted" style="font-weight:400">${fmtDate(cm.date)}</span></b><span class="small muted">${cm.confirmedBy?esc(cm.confirmedBy)+"님 · ":""}${agoTxt(cm.createdAt||Date.now())}</span></div>
+      <div class="row spread"><b>✅ 확정된 조합 <span class="small muted" style="font-weight:400">${fmtDate(cm.date)} · 총 ${tm.reduce((a,t)=>a+(t.names||[]).length,0)}명 (${tm.map(t=>(t.names||[]).length).join("·")})</span></b><span class="small muted">${cm.confirmedBy?esc(cm.confirmedBy)+"님 · ":""}${agoTxt(cm.createdAt||Date.now())}</span></div>
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${tm.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:8px;border-top:4px solid ${BIBS[i%6][1]}">
-        <div class="row spread"><b>${BIBS[i%6][0]}</b><span class="small num muted">${st[i]?st[i].avg.toFixed(2):""}</span></div>
+        <div class="row spread"><b>${BIBS[i%6][0]} <span class="num" style="font-weight:600;color:var(--accent)">${(t.names||[]).length}명</span></b><span class="small num muted">${st[i]?st[i].avg.toFixed(2):""}</span></div>
         <div style="font-size:.84rem;line-height:1.6">${(t.names||[]).map(n=>esc(n.replace("(용병)"," (용병)"))).join("<br>")}</div></div>`).join("")}</div>
       <div class="small muted">밸런스 ${bs}점 · 운영진 모두에게 같은 화면으로 보여요. 회원 공개 화면에도 이 명단이 나가요.</div>
       <div class="row"><button class="btn small primary" data-png="${cm.id}">이미지 공유</button><button class="btn small" data-mstat="${cm.id}">팀 전력</button><button class="btn small" data-medit="${cm.id}">명단 수정 (추가·삭제)</button><button class="btn small" data-play="${cm.id}">결과 입력</button>${hasResult(cm)?"":`<button class="btn ghost small danger" id="unconfirm" style="margin-left:auto">${unconfirmArm?"한 번 더 누르면 확정 취소":"확정 취소"}</button>`}</div>
