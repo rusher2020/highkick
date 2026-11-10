@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794294109"></script>
-<script src="adapter.js?v=1794294109"></script>
+<script src="config.js?v=1794353765"></script>
+<script src="adapter.js?v=1794353765"></script>
 <script>
 (function(){
 "use strict";
@@ -687,7 +687,7 @@ function renderMake(){
         <div class="row spread"><b>${BIBS[i%6][0]}</b><span class="small num muted">${st[i]?st[i].avg.toFixed(2):""}</span></div>
         <div style="font-size:.84rem;line-height:1.6">${(t.names||[]).map(n=>esc(n.replace("(용병)"," (용병)"))).join("<br>")}</div></div>`).join("")}</div>
       <div class="small muted">밸런스 ${bs}점 · 운영진 모두에게 같은 화면으로 보여요. 회원 공개 화면에도 이 명단이 나가요.</div>
-      <div class="row"><button class="btn small primary" data-png="${cm.id}">이미지 공유</button><button class="btn small" data-mstat="${cm.id}">팀 전력</button><button class="btn small" data-medit="${cm.id}">명단 고치기</button><button class="btn small" data-play="${cm.id}">결과 입력</button>${hasResult(cm)?"":`<button class="btn ghost small danger" id="unconfirm" style="margin-left:auto">${unconfirmArm?"한 번 더 누르면 확정 취소":"확정 취소"}</button>`}</div>
+      <div class="row"><button class="btn small primary" data-png="${cm.id}">이미지 공유</button><button class="btn small" data-mstat="${cm.id}">팀 전력</button><button class="btn small" data-medit="${cm.id}">명단 수정 (추가·삭제)</button><button class="btn small" data-play="${cm.id}">결과 입력</button>${hasResult(cm)?"":`<button class="btn ghost small danger" id="unconfirm" style="margin-left:auto">${unconfirmArm?"한 번 더 누르면 확정 취소":"확정 취소"}</button>`}</div>
       <span class="small muted">다시 짜서 다른 조합을 확정하면 이 조합이 바뀌어요.</span></div>`;}}
   if(draft&&!draft.cleared&&draft.opts&&draft.date===gameDate()&&draft.at!==lastDraftAt){
     const d=draft,o=(d.opts[d.optIdx||0]||d.opts[0]),nm=x=>x.g?(x.name||"용병"):((byId(x.id)||{}).name||"?");
@@ -895,7 +895,9 @@ function openMatchEdit(id){
         ${t.map((x,xi)=>`<div class="row" style="gap:6px;flex-wrap:nowrap"><span style="flex:1;min-width:0;font-size:.88rem;word-break:keep-all">${esc(x.name)}${x.guest?` <span class="small muted">용병</span>`:""}</span>
           <select data-mv="${ti}:${xi}" aria-label="${esc(x.name)} 팀 이동" style="padding:4px 6px;width:auto;flex:none">${rows.map((_,j)=>`<option value="${j}" ${j===ti?"selected":""}>${j+1}팀</option>`).join("")}</select>
           <button type="button" class="btn ghost small" data-rm="${ti}:${xi}" aria-label="${esc(x.name)} 빼기" style="padding:2px 8px">✕</button></div>`).join("")}</div>`).join("")}
-      <div class="row" style="gap:6px;flex-wrap:nowrap"><select id="meAdd" style="flex:1;min-width:0">${addable.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select><select id="meAddT" aria-label="넣을 팀" style="width:auto;flex:none">${rows.map((_,j)=>`<option value="${j}">${j+1}팀</option>`).join("")}</select><button type="button" class="btn small" id="meAddB">추가</button></div></div>
+      <div class="row" style="gap:6px;flex-wrap:nowrap"><select id="meAdd" style="flex:1;min-width:0">${addable.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select><select id="meAddT" aria-label="넣을 팀" style="width:auto;flex:none">${rows.map((_,j)=>`<option value="${j}">${j+1}팀</option>`).join("")}</select><button type="button" class="btn small" id="meAddB">추가</button></div>
+      <div class="row" style="gap:6px;flex-wrap:nowrap"><input type="text" id="meName" placeholder="직접 입력 (이름)" maxlength="20" style="flex:1;min-width:0"><select id="meNameT" aria-label="넣을 팀" style="width:auto;flex:none">${rows.map((_,j)=>`<option value="${j}">${j+1}팀</option>`).join("")}</select><button type="button" class="btn small primary" id="meNameB">추가</button></div>
+      <span class="small muted">직접 입력한 이름이 회원 명단에 있으면 회원으로, 없으면 용병으로 들어가요.</span></div>
     <div class="field"><span class="label">팀별 승 · 무 · 패</span>
       ${wdl.map((r,i)=>`<div class="row" style="gap:6px;flex-wrap:nowrap;font-size:.88rem"><span style="min-width:40px"><b>${BIBS[i%6][0]}</b></span>${["w","d","l"].map(k=>`<label style="display:flex;align-items:center;gap:3px">${{w:"승",d:"무",l:"패"}[k]}<input type="number" min="0" inputmode="numeric" data-ew="${i}:${k}" value="${r[k]}" style="width:52px;text-align:center"></label>`).join("")}</div>`).join("")}</div>`}
     <button class="btn primary big" type="submit">저장</button></form></div>`;
@@ -905,6 +907,11 @@ function openMatchEdit(id){
     document.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{keep();const [ti,xi]=b.dataset.rm.split(":").map(Number);rows[ti].splice(xi,1);draw();});
     document.querySelectorAll("[data-gx]").forEach(b=>b.onclick=()=>{keep();delG.add(+b.dataset.gx);draw();});
     const ab=$("#meAddB");if(ab)ab.onclick=()=>{keep();const m=byId($("#meAdd").value);if(!m)return;rows[+$("#meAddT").value].push(snapOf(m));draw();};
+    const nb=$("#meNameB"),ni=$("#meName");
+    const addTyped=()=>{const nm=(ni.value||"").trim();if(!nm){ni.focus();return;}keep();
+      if(rows.flat().some(x=>x.name===nm)){toast(`${nm}님은 이미 명단에 있어요`);return;}
+      const m=members.find(x=>x.name===nm);rows[+$("#meNameT").value].push(m?snapOf(m):{name:nm,guest:true});draw();toast(m?`${nm}님을 추가했어요`:`${nm}님을 용병으로 추가했어요`);};
+    if(nb)nb.onclick=addTyped;if(ni)ni.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();addTyped();}};
     $("#mEdit").onsubmit=async e=>{e.preventDefault();keep();
       try{
         const body={date};
