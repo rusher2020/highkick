@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794293283"></script>
-<script src="adapter.js?v=1794293283"></script>
+<script src="config.js?v=1794293406"></script>
+<script src="adapter.js?v=1794293406"></script>
 <script>
 (function(){
 "use strict";
@@ -337,6 +337,19 @@ async function addLog(o){if(!db)return;try{await db.collection("logs").add({at:D
 const headcount=()=>attend.size+guests.length;
 let teamCount=null;
 let options=[], optIdx=0, selected=null;
+// 운영진끼리 짜는 중인 조합 공유 (state/draft): 한 사람이 짜거나 바꾸면 다른 운영진 화면에 보임
+let draft=null,followDraft=false,lastDraftAt=0;
+function shareDraft(){
+  if(!db||!options.length)return;lastDraftAt=Date.now();followDraft=false;
+  const body={by:me()||"운영진",at:lastDraftAt,date:gameDate(),optIdx,opts:options.map(o=>({teams:o.teams.map(t=>t.map(m=>m.guest?{id:m.id,name:m.name,g:1}:{id:m.id}))}))};
+  db.doc("state/draft").set(body).catch(()=>{});
+}
+function loadDraft(d){
+  const res=x=>{if(!x.g)return byId(x.id);const g=guests.find(y=>y.id===x.id);return g?(g.rated?{...gNorm(g),guest:true}:{...g,guest:true}):{id:x.id,name:x.name||"용병",guest:true};};
+  options=(d.opts||[]).map(o=>{const teams=o.teams.map(t=>t.map(res).filter(Boolean));return {teams,score:balanceScore(teams)};});
+  optIdx=Math.min(d.optIdx||0,options.length-1);selected=null;followDraft=true;
+}
+const agoTxt=t=>{const m=Math.round((Date.now()-t)/60000);return m<1?"방금":m<60?m+"분 전":Math.round(m/60)+"시간 전";};
 let selMember=null;
 let makeMode="six";
 let tab="make", memberSort="score", memberOrder=null, lastEdited=null, delMode=false, delSel=new Set(), delConfirm=false;
@@ -614,7 +627,7 @@ function generateNow(){
   const shuffledGuests=[...unrated].sort(()=>Math.random()-.5);
   options=searchTeams(players,caps,900);
   options.forEach(o=>{let gi=0;o.teams.forEach((t,ti)=>{for(let j=0;j<g[ti];j++)t.push({...shuffledGuests[gi++],guest:true});});});
-  optIdx=0;selected=null;renderMake();
+  optIdx=0;selected=null;renderMake();shareDraft();
 }
 
 /* ---------- render: make ---------- */
@@ -665,6 +678,12 @@ function renderMake(){
   </div>`;
   h+=`<div class="seg" style="align-self:flex-start"><button data-mode="six" aria-pressed="${makeMode==="six"}">6인 팀 짜기</button><button data-mode="eleven" aria-pressed="${makeMode==="eleven"}">11인 라인업</button></div>`;
   if(makeMode==="eleven"){v.innerHTML=h+elevenHtml();return;}
+  if(draft&&!draft.cleared&&draft.opts&&draft.date===gameDate()&&draft.at!==lastDraftAt){
+    const d=draft,o=(d.opts[d.optIdx||0]||d.opts[0]),nm=x=>x.g?(x.name||"용병"):((byId(x.id)||{}).name||"?");
+    h+=`<div class="panel" style="display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--accent)">
+      <div class="row spread"><b>👀 ${esc(d.by)}님이 짠 조합</b><span class="small muted">${agoTxt(d.at)} · ${o.teams.length}팀${followDraft?" · 따라가는 중":""}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(o.teams.length,2)},minmax(0,1fr));gap:6px;font-size:.8rem">${o.teams.map((t,i)=>`<div><b style="color:${BIBS[i%6][1]}">${BIBS[i%6][0]}</b> <span class="muted">${t.map(nm).map(esc).join(", ")}</span></div>`).join("")}</div>
+      ${followDraft?`<span class="small muted">이 조합을 보고 있어요. ${esc(d.by)}님이 바꾸면 자동으로 바뀌어요. 직접 바꾸면 내 조합으로 공유돼요.</span>`:`<button class="btn primary" id="loadDraft">이 조합 불러와서 보기</button>`}</div>`;}
   if(n>=8){
     h+=`<div class="panel row spread"><div><div class="label">팀 수</div><div class="seg" style="margin-top:6px">${ch.map(c=>`<button data-k="${c}" aria-pressed="${c===k}">${c}팀</button>`).join("")}</div></div>
     <div class="small muted">인원 구성 <span class="num">${sizes(n,k).join(" · ")}</span></div></div>
@@ -1022,7 +1041,7 @@ function snapOf(m){if(m.guest&&!m.rated)return {name:m.name,guest:true};
 async function confirmTeams(){
   const o=options[optIdx];
   const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":"")),snap:t.map(snapOf)})),games:[],applied:false,deltas:{}};
-  try{const ref=await db.collection("matches").add(body);
+  try{const ref=await db.collection("matches").add(body);db.doc("state/draft").set({cleared:true,at:Date.now(),by:me()||""}).catch(()=>{});
     savePublic(o.teams.map(t=>({names:t.map(m=>m.name),guest:t.map(m=>!!m.guest)})),ref&&ref.id||null);
     toast("확정했어요. 경기가 끝나면 이 기록에 팀별 승·무·패를 넣어 주세요.");options=[];renderMake();if(ref&&ref.id)playId=ref.id;recView="matches";switchTab("records");}catch(e){dbErr(e);}
 }
@@ -1101,10 +1120,11 @@ document.addEventListener("click",e=>{
   if(b.dataset.wdel){const id=b.dataset.wdel;if(pendingWeek!==id){pendingWeek=id;renderRecords();setTimeout(()=>{if(pendingWeek===id){pendingWeek=null;renderRecords();}},4000);return;}
     pendingWeek=null;db.doc("weeks/"+id).delete().then(()=>toast("출석 기록을 지웠어요")).catch(dbErr);return;}
   if(b.dataset.medit)return openMatchEdit(b.dataset.medit);
-  if(b.dataset.opt){optIdx=+b.dataset.opt;selected=null;renderMake();return;}
+  if(b.dataset.opt){optIdx=+b.dataset.opt;selected=null;renderMake();if(!followDraft)shareDraft();return;}
+  if(b.id==="loadDraft"){if(draft)loadDraft(draft);renderMake();toast(`${draft.by}님이 짠 조합을 불러왔어요. 바뀌면 자동으로 따라가요`);return;}
   if(b.dataset.sw){const [t,i]=b.dataset.sw.split(":").map(Number);const o=options[optIdx];
     if(!selected)selected=[t,i];else if(selected[0]===t){selected=selected[1]===i?null:[t,i];}
-    else{const x=o.teams[selected[0]][selected[1]];o.teams[selected[0]][selected[1]]=o.teams[t][i];o.teams[t][i]=x;o.teams.forEach(tt=>tt.sort((p,q)=>(p.guest?1:0)-(q.guest?1:0)||eff(q)-eff(p)));selected=null;}
+    else{const x=o.teams[selected[0]][selected[1]];o.teams[selected[0]][selected[1]]=o.teams[t][i];o.teams[t][i]=x;o.teams.forEach(tt=>tt.sort((p,q)=>(p.guest?1:0)-(q.guest?1:0)||eff(q)-eff(p)));selected=null;shareDraft();}
     renderMake();return;}
   if(b.id==="confirm")return confirmTeams();
   if(b.id==="pasteNames")return openPasteNames();
@@ -2013,6 +2033,10 @@ renderAll();
   db.collection("logs").orderBy("at","desc").limit(200).onSnapshot(s=>{logs=s.docs.map(d=>({id:d.id,...d.data()}));if(document.getElementById("logList"))renderLogList();},e=>{});
   db.doc("public/next").onSnapshot(s=>{pubNext=s.exists?s.data():null;},e=>{});
   db.doc("state/pairs").onSnapshot(s=>{pairs=s.exists?(s.data().list||[]):[];renderMake();},e=>{});
+  db.doc("state/draft").onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&d.at===lastDraftAt){draft=d;return;}
+    const prev=draft;draft=d;
+    if(d&&!d.cleared&&followDraft&&prev&&d.at!==prev.at){loadDraft(d);toast(`${d.by}님이 조합을 바꿨어요`);}
+    if(tab==="make")renderMake();},e=>{});
   db.doc("state/aparts").onSnapshot(s=>{aparts=s.exists?(s.data().list||[]):[];renderMake();},e=>{});
   db.doc("state/attendance").onSnapshot(s=>{const d=s.exists?s.data():null;
     if(d&&!attendTimer&&d.matchDate)matchDate=d.matchDate;if(d&&!attendTimer)matchTime=d.matchTime||"";
