@@ -300,8 +300,8 @@ h2{font-family:var(--f-display);font-weight:400;font-size:1.2rem;margin:0;text-w
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=1794293406"></script>
-<script src="adapter.js?v=1794293406"></script>
+<script src="config.js?v=1794293861"></script>
+<script src="adapter.js?v=1794293861"></script>
 <script>
 (function(){
 "use strict";
@@ -338,7 +338,7 @@ const headcount=()=>attend.size+guests.length;
 let teamCount=null;
 let options=[], optIdx=0, selected=null;
 // 운영진끼리 짜는 중인 조합 공유 (state/draft): 한 사람이 짜거나 바꾸면 다른 운영진 화면에 보임
-let draft=null,followDraft=false,lastDraftAt=0;
+let draft=null,followDraft=false,lastDraftAt=0,genHistory=[];
 function shareDraft(){
   if(!db||!options.length)return;lastDraftAt=Date.now();followDraft=false;
   const body={by:me()||"운영진",at:lastDraftAt,date:gameDate(),optIdx,opts:options.map(o=>({teams:o.teams.map(t=>t.map(m=>m.guest?{id:m.id,name:m.name,g:1}:{id:m.id}))}))};
@@ -627,7 +627,9 @@ function generateNow(){
   const shuffledGuests=[...unrated].sort(()=>Math.random()-.5);
   options=searchTeams(players,caps,900);
   options.forEach(o=>{let gi=0;o.teams.forEach((t,ti)=>{for(let j=0;j<g[ti];j++)t.push({...shuffledGuests[gi++],guest:true});});});
-  optIdx=0;selected=null;renderMake();shareDraft();
+  optIdx=0;selected=null;
+  genHistory.unshift({at:Date.now(),bs:options[0].score!=null?options[0].score:balanceScore(options[0].teams),opts:options.map(o=>({...o,teams:o.teams.map(t=>[...t])}))});genHistory=genHistory.slice(0,10);
+  renderMake();shareDraft();
 }
 
 /* ---------- render: make ---------- */
@@ -678,6 +680,15 @@ function renderMake(){
   </div>`;
   h+=`<div class="seg" style="align-self:flex-start"><button data-mode="six" aria-pressed="${makeMode==="six"}">6인 팀 짜기</button><button data-mode="eleven" aria-pressed="${makeMode==="eleven"}">11인 라인업</button></div>`;
   if(makeMode==="eleven"){v.innerHTML=h+elevenHtml();return;}
+  {const cm=confirmedOf(gameDate());if(cm){const tm=cm.teams;const T=matchTeams(cm).teams,st=T.map(stats),bs=balanceScore(T);
+    h+=`<div class="panel" style="display:flex;flex-direction:column;gap:10px;border:2px solid var(--good)">
+      <div class="row spread"><b>✅ 확정된 조합 <span class="small muted" style="font-weight:400">${fmtDate(cm.date)}</span></b><span class="small muted">${cm.confirmedBy?esc(cm.confirmedBy)+"님 · ":""}${agoTxt(cm.createdAt||Date.now())}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${tm.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:8px;border-top:4px solid ${BIBS[i%6][1]}">
+        <div class="row spread"><b>${BIBS[i%6][0]}</b><span class="small num muted">${st[i]?st[i].avg.toFixed(2):""}</span></div>
+        <div style="font-size:.84rem;line-height:1.6">${(t.names||[]).map(n=>esc(n.replace("(용병)"," (용병)"))).join("<br>")}</div></div>`).join("")}</div>
+      <div class="small muted">밸런스 ${bs}점 · 운영진 모두에게 같은 화면으로 보여요. 회원 공개 화면에도 이 명단이 나가요.</div>
+      <div class="row"><button class="btn small primary" data-png="${cm.id}">이미지 공유</button><button class="btn small" data-mstat="${cm.id}">팀 전력</button><button class="btn small" data-medit="${cm.id}">명단 고치기</button><button class="btn small" data-play="${cm.id}">결과 입력</button>${hasResult(cm)?"":`<button class="btn ghost small danger" id="unconfirm" style="margin-left:auto">${unconfirmArm?"한 번 더 누르면 확정 취소":"확정 취소"}</button>`}</div>
+      <span class="small muted">다시 짜서 다른 조합을 확정하면 이 조합이 바뀌어요.</span></div>`;}}
   if(draft&&!draft.cleared&&draft.opts&&draft.date===gameDate()&&draft.at!==lastDraftAt){
     const d=draft,o=(d.opts[d.optIdx||0]||d.opts[0]),nm=x=>x.g?(x.name||"용병"):((byId(x.id)||{}).name||"?");
     h+=`<div class="panel" style="display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--accent)">
@@ -687,7 +698,10 @@ function renderMake(){
   if(n>=8){
     h+=`<div class="panel row spread"><div><div class="label">팀 수</div><div class="seg" style="margin-top:6px">${ch.map(c=>`<button data-k="${c}" aria-pressed="${c===k}">${c}팀</button>`).join("")}</div></div>
     <div class="small muted">인원 구성 <span class="num">${sizes(n,k).join(" · ")}</span></div></div>
-    <button class="btn primary big" id="gen">${options.length?"다시 짜기":"팀 짜기"}</button>`;
+    <button class="btn primary big" id="gen">${options.length?"다시 짜기":"팀 짜기"}</button>
+    <div class="row" style="gap:6px"><label class="btn small" style="cursor:pointer">🖼 이미지로 조합 불러오기<input type="file" id="imgIn" accept="image/png,image/*" hidden></label>
+      ${genHistory.length>1?`<details style="flex:1;min-width:200px"><summary class="small" style="cursor:pointer">이번에 나온 조합 ${genHistory.length}번 다시 보기</summary><div class="row" style="gap:4px;margin-top:6px">${genHistory.map((g,i)=>`<button class="btn small" data-hist="${i}">${genHistory.length-i}번째 · ${new Date(g.at).toTimeString().slice(0,5)} · ${g.bs}점</button>`).join("")}</div></details>`:""}</div>
+    <span class="small muted">앱에서 저장한 팀 편성 이미지를 고르면 그 조합을 그대로 다시 만들어요.</span>`;
   }else h+=`<div class="notice">8명 이상 체크하면 팀을 짤 수 있습니다.</div>`;
   if(options.length){
     const o=options[optIdx],st=o.teams.map(stats),avgs=st.map(s=>s.avg),gap=Math.max(...avgs)-Math.min(...avgs);
@@ -706,7 +720,7 @@ function renderMake(){
       <div class="meta" style="padding-top:4px"><span class="pill">${POS_KEYS.map(p=>POS[p]+" "+s.P[p]).join(" · ")}</span>${s.min.short?`<span class="pill" style="color:var(--bad)">필수 포지션 부족: ${s.min.miss}</span>`:s.form.short?`<span class="pill" style="color:var(--warn)">사이드·중앙·수비 ✓ · 2-1-2엔 ${s.form.miss} 부족</span>`:`<span class="pill" style="color:var(--good)">2-1-2 대형 ✓</span>`}</div>
       <div class="meta" style="padding-top:4px">${AREAS.map(([k])=>`<span class="pill num">${AREA_SHORT[k]} ${s[k].toFixed(1)}</span>`).join("")}<span class="pill num">회원 합 ${s.sum.toFixed(1)}</span>${s.inj?`<span class="pill">🩹 ${s.inj}</span>`:""}${s.tall?`<span class="pill">장신 ${s.tall}</span>`:""}${s.left?`<span class="pill">왼발 ${s.left}</span>`:""}${formMap.size?`<span class="pill num">최근 성적 ${Math.round(s.rf*100)}</span>`:""}</div>
       <ul>${t.map((m,mi)=>`<li><button data-sw="${ti}:${mi}" class="${m.guest&&!m.rated?"":"tint t-"+tierOf(m.score).k} ${selected&&selected[0]===ti&&selected[1]===mi?"sel":""}">${m.guest&&!m.rated?`<span class="tier G">용병</span>`:tierHtml(m.score)}<span class="nm">${esc(m.name)}${m.guest?"":badges(m)}${activePairs().some(p=>p.a===m.id||p.b===m.id)?" 🔗":""}</span><span class="pos">${m.guest?"용병":POS[m.pos]||""}</span><span class="sc">${m.guest&&!m.rated?"?":eff(m).toFixed(1)}</span></button></li>`).join("")}</ul></article>`;}).join("")}</div>
-    <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 공유</button><button class="btn primary" id="confirm" style="flex:2">이 조합으로 확정</button></div>`;
+    <div class="row" style="flex-wrap:nowrap"><button class="btn" id="pngOpt" style="flex:1">이미지 공유</button><button class="btn primary" id="confirm" style="flex:2">${confirmedOf(gameDate())?"이 조합으로 바꿔 확정(고정)":"이 조합으로 확정(고정)"}</button></div>`;
   }
   v.innerHTML=h;
 }
@@ -1038,12 +1052,22 @@ function nextTuesday(){const t=new Date();t.setHours(0,0,0,0);const add=(2-t.get
 function snapOf(m){if(m.guest&&!m.rated)return {name:m.name,guest:true};
   const o={name:m.name,score:m.score,adj:m.adj||0,injured:!!m.injured,pos:m.pos,pos2:m.pos2||[],tall:!!m.tall,foot:m.foot||""};
   AREAS.forEach(([k])=>o[k]=m[k]);if(m.guest){o.guest=true;o.rated=true;}else o.id=m.id;return o;}
+// 오늘(경기 날짜) 확정된 조합: 같은 날짜의 가장 최근 경기 기록
+const confirmedOf=d=>[...matches].filter(m=>m.date===d&&m.teams&&m.teams.length).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0]||null;
+let confirmArm=false,unconfirmArm=false;
 async function confirmTeams(){
-  const o=options[optIdx];
-  const body={date:gameDate(),createdAt:Date.now(),teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":"")),snap:t.map(snapOf)})),games:[],applied:false,deltas:{}};
-  try{const ref=await db.collection("matches").add(body);db.doc("state/draft").set({cleared:true,at:Date.now(),by:me()||""}).catch(()=>{});
-    savePublic(o.teams.map(t=>({names:t.map(m=>m.name),guest:t.map(m=>!!m.guest)})),ref&&ref.id||null);
-    toast("확정했어요. 경기가 끝나면 이 기록에 팀별 승·무·패를 넣어 주세요.");options=[];renderMake();if(ref&&ref.id)playId=ref.id;recView="matches";switchTab("records");}catch(e){dbErr(e);}
+  const o=options[optIdx],prev=confirmedOf(gameDate());
+  // 이미 확정된 조합이 있으면 한 번 더 눌러야 바꿈
+  if(prev&&!confirmArm){confirmArm=true;const bt=$("#confirm");if(bt)bt.textContent="한 번 더 누르면 확정 조합을 바꿔요";setTimeout(()=>{confirmArm=false;if(tab==="make")renderMake();},4000);return;}
+  confirmArm=false;
+  const body={date:gameDate(),createdAt:Date.now(),confirmedBy:me()||"",teams:o.teams.map(t=>({ids:t.filter(m=>!m.guest).map(m=>m.id),names:t.map(m=>m.name+(m.guest?"(용병)":"")),snap:t.map(snapOf)})),games:[],applied:false,deltas:{}};
+  try{let id;
+    if(prev&&!hasResult(prev)){await db.doc("matches/"+prev.id).update({teams:body.teams,createdAt:body.createdAt,confirmedBy:body.confirmedBy});id=prev.id;}
+    else{const ref=await db.collection("matches").add(body);id=ref&&ref.id||null;}
+    db.doc("state/draft").set({cleared:true,at:Date.now(),by:me()||""}).catch(()=>{});
+    savePublic(o.teams.map(t=>({names:t.map(m=>m.name),guest:t.map(m=>!!m.guest)})),id);
+    addLog({kind:"confirm",date:body.date,count:o.teams.length});
+    toast(prev?"확정 조합을 바꿨어요. 모든 운영진 화면에 보여요":"확정했어요. 모든 운영진 화면에 보여요");options=[];renderMake();window.scrollTo({top:0,behavior:"smooth"});}catch(e){dbErr(e);}
 }
 // 예전 방식으로 반영된 경기 결과 보정을 한 번에 되돌림 (회원마다 합계를 빼서 한 번만 저장)
 async function undoAllResults(){
@@ -1121,14 +1145,18 @@ document.addEventListener("click",e=>{
     pendingWeek=null;db.doc("weeks/"+id).delete().then(()=>toast("출석 기록을 지웠어요")).catch(dbErr);return;}
   if(b.dataset.medit)return openMatchEdit(b.dataset.medit);
   if(b.dataset.opt){optIdx=+b.dataset.opt;selected=null;renderMake();if(!followDraft)shareDraft();return;}
+  if(b.dataset.hist){const g=genHistory[+b.dataset.hist];if(!g)return;options=g.opts.map(o=>({...o,teams:o.teams.map(t=>[...t])}));optIdx=0;selected=null;followDraft=false;renderMake();shareDraft();toast("그때 나온 조합을 다시 띄웠어요");return;}
   if(b.id==="loadDraft"){if(draft)loadDraft(draft);renderMake();toast(`${draft.by}님이 짠 조합을 불러왔어요. 바뀌면 자동으로 따라가요`);return;}
   if(b.dataset.sw){const [t,i]=b.dataset.sw.split(":").map(Number);const o=options[optIdx];
     if(!selected)selected=[t,i];else if(selected[0]===t){selected=selected[1]===i?null:[t,i];}
     else{const x=o.teams[selected[0]][selected[1]];o.teams[selected[0]][selected[1]]=o.teams[t][i];o.teams[t][i]=x;o.teams.forEach(tt=>tt.sort((p,q)=>(p.guest?1:0)-(q.guest?1:0)||eff(q)-eff(p)));selected=null;shareDraft();}
     renderMake();return;}
   if(b.id==="confirm")return confirmTeams();
+  if(b.id==="unconfirm"){const cm=confirmedOf(gameDate());if(!cm)return;
+    if(!unconfirmArm){unconfirmArm=true;renderMake();setTimeout(()=>{unconfirmArm=false;if(tab==="make")renderMake();},4000);return;}
+    unconfirmArm=false;db.doc("matches/"+cm.id).delete().then(()=>{db.doc("public/next").set({date:gameDate(),count:headcount(),teams:null,matchId:null}).catch(()=>{});toast("확정을 취소했어요");}).catch(dbErr);return;}
   if(b.id==="pasteNames")return openPasteNames();
-  if(b.id==="pngOpt"){const o=options[optIdx];return sharePng(gameDate(),o.teams.map(t=>t.map(m=>({name:m.name,guest:!!m.guest}))));}
+  if(b.id==="pngOpt"){const o=options[optIdx];return sharePng(gameDate(),o.teams.map(t=>t.map(m=>({id:m.id,name:m.name,guest:!!m.guest}))));}
   if(b.dataset.fb)return openFeedback(b.dataset.fb);
   if(b.dataset.play){playId=b.dataset.play;switchTab("records");return;}
   if(b.dataset.pick){playId=b.dataset.pick;renderPlay();return;}
@@ -1150,7 +1178,7 @@ document.addEventListener("click",e=>{
     db.doc("matches/"+mt.id).update({wdl:rec}).catch(dbErr);return;}
   if(b.dataset.mstat){radarHidden=new Set();return openMatchStats(b.dataset.mstat);}
   if(b.dataset.png){const mt=matches.find(x=>x.id===b.dataset.png);
-    return sharePng(mt.date,mt.teams.map(t=>t.names.map(n=>{const g=/\(용병\)$/.test(n);return {name:n.replace(/\(용병\)$/,""),guest:g,gk:false};})));}
+    return sharePng(mt.date,mt.teams.map(t=>t.names.map(n=>{const g=/\(용병\)$/.test(n),nm=n.replace(/\(용병\)$/,""),mm=!g&&members.find(x=>x.name===nm);return {id:mm?mm.id:"",name:nm,guest:g,gk:false};})));}
   if(b.id==="addOne")return openEdit(null);
   if(b.id==="delMode"){delMode=!delMode;delSel=new Set();delConfirm=false;renderMembers();return;}
   if(b.dataset.delpick){const id=b.dataset.delpick;delSel.has(id)?delSel.delete(id):delSel.add(id);delConfirm=false;renderMembers();return;}
@@ -1181,6 +1209,16 @@ document.addEventListener("click",e=>{
 });
 
 document.addEventListener("input",e=>{if(e.target&&e.target.id==="memo11")E11.memo=e.target.value;});
+document.addEventListener("change",async e=>{
+  if(!e.target||e.target.id!=="imgIn")return;const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;
+  const meta=await readPngMeta(f).catch(()=>null);
+  if(!meta||!meta.teams){toast("이 이미지에는 조합 정보가 없어요. 앱에서 저장한 원본 이미지를 골라 주세요");return;}
+  let miss=0;const teams=meta.teams.map(t=>t.map(x=>{if(x.g){const g=guests.find(y=>y.name===x.name);return g?(g.rated?{...gNorm(g),guest:true}:{...g,guest:true}):{id:"g"+Math.random().toString(36).slice(2,8),name:x.name,guest:true};}
+    const m=(x.id&&byId(x.id))||members.find(y=>y.name===x.name);if(!m){miss++;return null;}return m;}).filter(Boolean));
+  const absent=teams.flat().filter(m=>!m.guest&&!attend.has(m.id)).length;
+  options=[{teams,score:balanceScore(teams)}];optIdx=0;selected=null;followDraft=false;renderMake();shareDraft();
+  toast(`${fmtDate(meta.date||gameDate())} 조합을 불러왔어요${miss?` · 명단에 없는 ${miss}명 제외`:""}${absent?` · 오늘 출석 안 한 ${absent}명 포함`:""}`);
+});
 document.addEventListener("change",e=>{
   if(e.target&&e.target.dataset&&e.target.dataset.gk11!=null&&e.target.dataset.gk11!==undefined&&e.target.matches&&e.target.matches("select[data-gk11]")){const q=+e.target.dataset.gk11;E11.gk[q]=e.target.value;
     if(E11.plan){const Qd=E11.plan.q[q],id=e.target.value||E11.gk[0];if(id){const k=Qd.lineup.indexOf(id);if(k>0){Qd.lineup[k]=Qd.lineup[0];}else{const bi=Qd.bench.indexOf(id);if(bi>=0)Qd.bench[bi]=Qd.lineup[0];}Qd.lineup[0]=id;Qd.bench=Qd.bench.filter(Boolean);}}
@@ -1827,6 +1865,7 @@ function logLine(l){
   if(l.kind==="add")return `${who}님이 ${nm} 회원 추가 (${Object.entries(l.changes||{}).map(([k,v])=>(AREA_KO[k]||k)+" "+v[1]).join(", ")})`;
   if(l.kind==="delete")return `${who}님이 ${nm} 회원 삭제`;
   if(l.kind==="feedback")return `${who}님이 ${esc(l.matchDate?fmtDate(l.matchDate):"")} 개인 피드백: `+(l.items||[]).map(i=>`${esc(i.name)} <b class="${i.delta>0?"up":"down"}">${i.delta>0?"+":""}${i.delta.toFixed(1)}</b>`).join(", ");
+  if(l.kind==="confirm")return `${who}님이 ${fmtDate(l.date)} 팀 조합 확정 (${l.count||0}팀)`;
   if(l.kind==="photo")return `${who}님이 얼굴 사진 연결 (${l.count||0}명)`;
   if(l.kind==="undoRes")return `${who}님이 예전 경기 결과 보정 되돌리기 (${l.count||0}명)`;
   if(l.kind==="reset")return `${who}님이 보정치 전체 초기화 (${l.count||0}명)`;
@@ -1979,8 +2018,28 @@ async function makePng(dateStr,teams){
   x.font="400 24px "+BODY;x.fillStyle="rgba(243,247,241,.6)";x.fillText("하이킥FC 팀 밸런서",P,H-48);
   return await new Promise(res=>c.toBlob(res,"image/png"));
 }
+// 저장하는 팀 편성 이미지 안에 조합 정보(회원 id·이름)를 몰래 넣어 둠 → 나중에 이미지로 조합을 그대로 불러옴
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;};
+async function pngWithMeta(blob,obj){
+  const buf=new Uint8Array(await blob.arrayBuffer()),txt=btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+  const data=new TextEncoder().encode("highkick\0"+txt),type=new TextEncoder().encode("tEXt"),len=data.length;
+  const chunk=new Uint8Array(12+len),dv=new DataView(chunk.buffer);dv.setUint32(0,len);chunk.set(type,4);chunk.set(data,8);
+  const ci=new Uint8Array(4+len);ci.set(type,0);ci.set(data,4);dv.setUint32(8+len,crc32(ci));
+  const iend=buf.length-12,out=new Uint8Array(buf.length+chunk.length);out.set(buf.subarray(0,iend),0);out.set(chunk,iend);out.set(buf.subarray(iend),iend+chunk.length);
+  return new Blob([out],{type:"image/png"});
+}
+async function readPngMeta(file){
+  const b=new Uint8Array(await file.arrayBuffer());if(b[0]!==0x89||b[1]!==0x50)return null;
+  const dv=new DataView(b.buffer);let p=8;
+  while(p+8<b.length){const len=dv.getUint32(p),type=String.fromCharCode(b[p+4],b[p+5],b[p+6],b[p+7]);
+    if(type==="tEXt"){const t=new TextDecoder("latin1").decode(b.subarray(p+8,p+8+len));if(t.startsWith("highkick\0")){try{return JSON.parse(decodeURIComponent(escape(atob(t.slice(9)))));}catch(e){return null;}}}
+    if(type==="IEND")break;p+=12+len;}
+  return null;
+}
 async function sharePng(dateStr,teams){
-  const blob=await makePng(dateStr,teams);if(!blob){toast("이미지를 만들지 못했습니다");return;}
+  let blob=await makePng(dateStr,teams);if(!blob){toast("이미지를 만들지 못했습니다");return;}
+  try{blob=await pngWithMeta(blob,{v:1,date:dateStr,teams:teams.map(t=>t.map(m=>m.guest?{g:1,name:m.name}:{id:m.id||"",name:m.name}))});}catch(e){}
   imageSheet(blob,`하이킥_팀편성_${dateStr}.png`,"팀 편성 이미지");
 }
 // 이미지 미리보기 → 공유하기(카카오톡 등 다른 앱) / 저장하기
