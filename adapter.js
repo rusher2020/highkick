@@ -167,6 +167,81 @@ body.locked .band .stats,body.locked .band .nextm{display:none}
     if (bk) bk.hidden = !isAdmin;
   }
 
+
+  /* 홈 화면에 추가 (앱처럼 바로 열기) */
+  let installEvt = null;
+  const UA = navigator.userAgent || "";
+  const isIOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isKakao = /KAKAOTALK/i.test(UA);
+  const isInApp = isKakao || /NAVER\(|Instagram|FBAN|FBAV|Line\/|DaumApps|everytimeApp/i.test(UA);
+  const isSamsung = /SamsungBrowser/i.test(UA);
+  function isStandalone() { try { return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) { return false; } }
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); installEvt = e; paintInstall(); });
+  window.addEventListener("appinstalled", function () { installEvt = null; paintInstall(); alertMsg("홈 화면에 하이킥FC를 추가했어요"); });
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+  function paintInstall() {
+    const b = document.getElementById("whoBtn");
+    let ib = document.getElementById("installBtn");
+    if (!ib && b && b.parentNode) {
+      ib = document.createElement("button"); ib.id = "installBtn"; ib.className = "who"; ib.type = "button";
+      ib.textContent = "📲 홈 화면에 추가"; ib.style.marginLeft = "6px";
+      let wrap = document.getElementById("whoWrap");
+      if (!wrap) {
+        wrap = document.createElement("div"); wrap.id = "whoWrap";
+        wrap.style.cssText = "display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;position:relative;z-index:1";
+        b.parentNode.insertBefore(wrap, b); wrap.appendChild(b);
+        const bk = document.getElementById("backupBtn"); if (bk) wrap.insertBefore(bk, b);
+      }
+      wrap.insertBefore(ib, wrap.firstChild);
+      ib.onclick = installApp;
+    }
+    if (ib) { ib.hidden = isStandalone(); ib.style.marginLeft = "0"; }
+    const bk = document.getElementById("backupBtn"); if (bk) bk.style.marginLeft = "0";
+  }
+  async function installApp() {
+    if (installEvt) {
+      const ev = installEvt; installEvt = null;
+      try { ev.prompt(); await ev.userChoice; } catch (e) {}
+      paintInstall(); return;
+    }
+    const root = document.getElementById("sheetRoot"); if (!root) return;
+    const url = location.href.split("#")[0];
+    let body;
+    if (isKakao) {
+      body = '<p style="margin:0">카카오톡 안에서는 홈 화면에 추가할 수 없어요. 먼저 다른 브라우저로 연 다음 다시 <b>📲 홈 화면에 추가</b>를 눌러 주세요.</p>' +
+        '<button class="btn primary" type="button" id="instExt">다른 브라우저로 열기</button>';
+    } else if (isInApp) {
+      body = '<p style="margin:0">이 앱 안에서는 홈 화면에 추가할 수 없어요. 오른쪽 위(또는 아래) 메뉴에서 <b>다른 브라우저로 열기</b>를 누른 다음 다시 시도해 주세요.</p>';
+    } else if (isIOS) {
+      body = '<ol style="margin:0;padding-left:20px;line-height:1.9">' +
+        '<li>Safari 아래쪽(또는 주소창 옆)의 <b>공유 버튼</b> <span style="display:inline-block;border:1.5px solid currentColor;border-radius:4px;padding:0 5px;font-size:.85em">↑</span> 을 누르세요</li>' +
+        '<li>목록을 아래로 내려 <b>홈 화면에 추가</b>를 누르세요</li>' +
+        '<li>오른쪽 위 <b>추가</b>를 누르면 끝!</li></ol>' +
+        '<p class="small muted" style="margin:0">아이폰에서는 Safari로 열어야 잘 돼요. 다른 브라우저라면 주소를 복사해 Safari에서 열어 주세요.</p>';
+    } else {
+      body = '<ol style="margin:0;padding-left:20px;line-height:1.9">' +
+        (isSamsung
+          ? '<li>아래쪽 <b>메뉴(≡)</b>를 누르세요</li><li><b>현재 페이지 추가</b> → <b>홈 화면</b>을 고르세요</li>'
+          : '<li>오른쪽 위 <b>메뉴(⋮)</b>를 누르세요</li><li><b>홈 화면에 추가</b> 또는 <b>앱 설치</b>를 누르세요</li>') +
+        '<li><b>추가(설치)</b>를 누르면 바탕화면에 하이킥FC 아이콘이 생겨요</li></ol>';
+    }
+    root.innerHTML = '<div class="scrim" id="instScrim"><div class="sheet">' +
+      '<div class="row spread"><h2>📲 홈 화면에 추가</h2><button type="button" class="btn ghost small" id="instClose">닫기</button></div>' +
+      '<div class="row" style="flex-wrap:nowrap;gap:12px;align-items:center"><img src="icon-192.png" alt="" width="56" height="56" style="border-radius:14px;flex:none">' +
+      '<span class="small muted">바탕화면에 하이킥FC 아이콘이 생기고, 누르면 주소창 없이 앱처럼 바로 열려요.</span></div>' +
+      body + '<button class="btn ghost small" type="button" id="instCopy">주소 복사</button></div></div>';
+    const close = function () { root.innerHTML = ""; };
+    document.getElementById("instScrim").onclick = function (e) { if (e.target.id === "instScrim") close(); };
+    document.getElementById("instClose").onclick = close;
+    document.getElementById("instCopy").onclick = async function () {
+      try { await navigator.clipboard.writeText(url); alertMsg("주소를 복사했어요"); } catch (e) { alertMsg(url); }
+    };
+    const ex = document.getElementById("instExt");
+    if (ex) ex.onclick = function () { location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(url); };
+  }
+
   function login() {
     if (!auth) return;
     const root = document.getElementById("sheetRoot");
@@ -307,7 +382,7 @@ body.locked .band .stats,body.locked .band .nextm{display:none}
   });
 
   document.addEventListener("DOMContentLoaded", function () {
-    paintWho(); paintLock(); authReady.then(paintLock);
+    paintWho(); paintInstall(); paintLock(); authReady.then(paintLock);
     if (configured && !window.firebase) {
       setTimeout(function () {
         const v = document.getElementById("pubView");
